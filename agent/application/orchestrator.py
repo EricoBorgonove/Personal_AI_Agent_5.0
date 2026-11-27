@@ -19,17 +19,19 @@ from .planning import PlanError, parse_plan, plan_schema
 from .responses import ResponseBuilder
 from .tool_evidence import missing_write_evidence
 from .tools import build_registry
+from .working_memory import COMMANDS, CONFIRMATIONS, WorkingMemoryManager, command_text
 logger = logging.getLogger(__name__)
 MAX_TOOLS = 5
 MODEL_EXCLUDED_TOOLS = {'solicitar_reuniao', 'registrar_recado'}
 
 
 class Orchestrator:
-    def __init__(self,uow,repository,owner,model,knowledge,*,meeting_duration=60):
+    def __init__(self,uow,repository,owner,model,knowledge,*,working_memory_repository,meeting_duration=60):
         self.uow,self.repository,self.owner,self.model,self.knowledge=uow,repository,owner,model,knowledge
         self.factory=AgentFactory(owner)
         self.dialogue=DialogueManager(meeting_duration)
         self.responses=ResponseBuilder()
+        self.working_memory_repository=working_memory_repository
     def handle(self,sender,text,event_id=None,*,reply_to=None,presentation_keys=(),display_name=None):
         request_id = uuid4().hex[:12]
         with self.uow.transaction() as d:
@@ -44,6 +46,12 @@ class Orchestrator:
                 repo.notify(recipient, agent.presentation)
             if text.strip().casefold() == '/identidade':
                 repo.notify(recipient, agent.identity_message)
+                return
+            memory = WorkingMemoryManager(self.working_memory_repository(d))
+            command = command_text(text)
+            if command in COMMANDS:
+                response = self._memory_command(repo, memory, sender, agent, command)
+                repo.notify(recipient, agent.format(response))
                 return
             registry=build_registry(repo,self.owner,self.knowledge)
             e=Executor(registry,self.factory)
@@ -80,6 +88,12 @@ class Orchestrator:
                     logger.warning('decisao_rejeitada req=%s tipo=reagendamento\n%s', request_id, safe_traceback(ex))
                     answer=str(ex)
             if answer is None:
+                pending = memory.route(sender, agent.role, owner, text, now().date())
+                if pending is not None:
+                    answer = self._memory_response(repo, memory, agent, e, pending, sender, request_id)
+                elif command in CONFIRMATIONS:
+                    answer = 'Nenhum rascunho disponível para confirmar.'
+            if answer is None:
                 decision = self.dialogue.route(repo, sender, text, now().date(), display_name)
                 logger.info('[DIALOGUE] req=%s', request_id)
                 logger.info('[INTENT] req=%s intent=%s', request_id, decision.intent)
@@ -114,6 +128,41 @@ class Orchestrator:
         logger.info('mensagem_processada req=%s', request_id)
 
     @staticmethod
+    def _memory_command(repo, memory, sender, agent, command):
+        if command == '/contexto':
+            draft = memory.repository.load(sender, agent.role) if agent.permits(True) else None
+            if draft:
+                return memory.describe(draft)
+            legacy = repo.dialogue(sender)
+            if legacy:
+                kind = 'reunião' if legacy['kind'] == 'meeting' else 'recado'
+                return f'Você tem um pedido de {kind} em preparação.'
+            return 'Nenhum rascunho em andamento.'
+        if agent.permits(True):
+            memory.complete(sender, agent.role)
+        repo.clear_dialogue(sender)
+        if command == '/novaconversa':
+            repo.reset_conversation(sender)
+            return 'Nova conversa iniciada.'
+        return 'Rascunhos da conversa cancelados.'
+
+    def _memory_response(self, repo, memory, agent, executor, pending, sender, request_id):
+        if pending.tool is None:
+            return pending.reply
+        if pending.tool not in executor.registry.available(agent):
+            return 'Operação não autorizada.'
+        try:
+            with repo.atomic():
+                result = self._verified_execution(executor, sender, pending.tool, pending.args, request_id)
+                answer = self.responses.results([(pending.tool, result, pending.args)])
+                memory.complete(sender, agent.role)
+        except Exception as error:
+            logger.error('[ERROR] rascunho req=%s ferramenta=%s\n%s', request_id,
+                         pending.tool, safe_traceback(error))
+            return 'Não consegui registrar a operação. O rascunho continua disponível em /contexto.'
+        return answer
+
+    @staticmethod
     def _system_prompt(agent, tools):
         return (
             f'Você é um assistente do professor, perfil {agent.role}. Data e hora em Manaus: {now().isoformat()}. '
@@ -145,12 +194,15 @@ class Orchestrator:
         )
 
     @staticmethod
-    def _execute(repo, executor, sender, tool, args, request_id):
-        with repo.atomic():
-            result = executor.execute(sender, tool, args, request_id=request_id)
-            json.dumps(result, ensure_ascii=False, allow_nan=False).encode('utf-8')
+    def _verified_execution(executor, sender, tool, args, request_id):
+        result = executor.execute(sender, tool, args, request_id=request_id)
+        json.dumps(result, ensure_ascii=False, allow_nan=False).encode('utf-8')
         logger.info('[RESULT] req=%s ferramenta=%s', request_id, tool)
         return result
+
+    def _execute(self, repo, executor, sender, tool, args, request_id):
+        with repo.atomic():
+            return self._verified_execution(executor, sender, tool, args, request_id)
 
     def _run_plan(self, repo, executor, sender, tools, messages, request_id, intent, user_text):
         allowed = tools
