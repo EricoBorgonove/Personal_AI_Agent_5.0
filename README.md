@@ -63,6 +63,8 @@ Uma solicitação de reunião externa gera um pedido pendente após a confirmaç
 - `/cancelar` encerra os rascunhos da conversa.
 - `/novaconversa` encerra os rascunhos e reinicia o contexto enviado ao modelo. Os registros anteriores continuam no SQLite.
 
+Cada chamada ao modelo registra `[LLM] tokens` com o tamanho do prompt. O aviso `contexto_esgotado` indica que o Ollama descartou o início do prompt; aumente `OLLAMA_NUM_CTX` no `.env` (padrão 4096), observando o uso de memória da GPU. `OLLAMA_NUM_PREDICT` limita a resposta e `OLLAMA_TIMEOUT` o tempo de cada chamada.
+
 Para ver a identificação no terminal, defina `DEBUG=true` no `.env` e reinicie o processo. O diagnóstico mostra servidor, JIDs mascarados, origem da comparação, agente e nível de acesso. Em caso de erro, o traceback mostra os arquivos, as linhas e as classes de exceção. Os logs omitem os JIDs completos, o conteúdo das mensagens, os valores das ferramentas e o texto das exceções. A saída do aplicativo usa UTF-8, inclusive quando redirecionada no Windows. Para testar o modo terminal em outro banco, use `python main.py --terminal --db caminho/para/teste.db`.
 
 Faça o pareamento com aparelhos conectados e envie mensagens de outros números. Use uma conta de teste: Neonize é uma integração não oficial, sujeita a mudanças e limitações do WhatsApp. Não execute o bot antigo simultaneamente com esta sessão. O modo WhatsApp não foi testado conectado neste ambiente; confirme compatibilidade e pareamento antes da oficina.

@@ -1,7 +1,6 @@
 import copy
 import json
 import logging
-import os
 import re
 from threading import Lock
 from time import monotonic
@@ -218,8 +217,7 @@ class Orchestrator:
             before = copy.deepcopy(memory.data)
             started = monotonic()
             try:
-                logger.info('[LLM] envio req=%s modelo=%s etapa=%d', request_id,
-                            os.getenv('OLLAMA_MODEL', 'qwen2.5:3b'), step)
+                logger.info('[LLM] envio req=%s etapa=%d', request_id, step)
                 plan = parse_turn(
                     self.model(messages, turn_schema(tools)), tools,
                     active_tool=(memory.active or {}).get('tool'),
