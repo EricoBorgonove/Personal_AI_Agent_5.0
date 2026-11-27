@@ -1,3 +1,5 @@
+import json
+
 from .calendar_repository import LocalCalendarProvider
 from .obligations_repository import ObligationsRepository
 from .finance_repository import FinanceRepository
@@ -10,11 +12,16 @@ class Repository:
         return rows(self.db,'SELECT * FROM requests WHERE sender=? ORDER BY id DESC LIMIT 20',(sender,)) if sender is not None else rows(self.db,'SELECT * FROM requests ORDER BY id DESC LIMIT 20')
     def duplicate(self,sender,subject,slot):
         return self.db.execute("SELECT id FROM requests WHERE sender=? AND subject=? AND slot=? AND status IN ('PENDENTE','CONTRAPROPOSTA','ACEITA','CONFIRMADA')",(sender,subject,slot)).fetchone()
-    def create_request(self,sender,name,subject,slot):
+    def create_request(self,sender,name,subject,slot,duration=60):
         i=self.db.execute("INSERT INTO requests(sender,name,subject,slot,status) VALUES (?,?,?,?,'PENDENTE')",(sender,name,subject,slot)).lastrowid
+        self.db.execute('INSERT INTO meeting_durations(request_id,minutes) VALUES (?,?)',(i,duration))
         self.db.execute('INSERT INTO transitions(request_id,actor,status,slot) VALUES (?,?,?,?)',(i,sender,'PENDENTE',slot))
         return i
-    def request(self,i): return self.db.execute('SELECT * FROM requests WHERE id=?',(i,)).fetchone()
+    def request(self,i):
+        return self.db.execute(
+            'SELECT r.*, COALESCE(d.minutes,60) AS duration FROM requests r '
+            'LEFT JOIN meeting_durations d ON d.request_id=r.id WHERE r.id=?', (i,)
+        ).fetchone()
     def conflict(self,slot,i): return self.db.execute("SELECT 1 FROM requests WHERE slot=? AND status='CONFIRMADA' AND id<>?",(slot,i)).fetchone()
     def change(self,i,actor,state,slot):
         self.db.execute('UPDATE requests SET status=?,slot=? WHERE id=?',(state,slot,i))
@@ -37,6 +44,23 @@ class Repository:
             if not inserted:
                 first = False
         return first
+    def dialogue(self, sender):
+        row = self.db.execute(
+            "SELECT fields FROM dialogue_drafts WHERE sender=? AND updated_at>=datetime('now','-7 days')",
+            (sender,),
+        ).fetchone()
+        return json.loads(row['fields']) if row else None
+
+    def save_dialogue(self, sender, fields):
+        self.db.execute("DELETE FROM dialogue_drafts WHERE updated_at<datetime('now','-7 days')")
+        self.db.execute(
+            'INSERT INTO dialogue_drafts(sender,fields) VALUES (?,?) ON CONFLICT(sender) DO UPDATE '
+            'SET fields=excluded.fields, updated_at=CURRENT_TIMESTAMP',
+            (sender, json.dumps(fields, ensure_ascii=False)),
+        )
+
+    def clear_dialogue(self, sender):
+        self.db.execute('DELETE FROM dialogue_drafts WHERE sender=?', (sender,))
     def history(self,sender): return rows(self.db,'SELECT role,content FROM messages WHERE sender=? ORDER BY id DESC LIMIT 12',(sender,))[::-1]
     def record(self,sender,text,answer): self.db.executemany('INSERT INTO messages(sender,role,content) VALUES (?,?,?)',[(sender,'user',text),(sender,'assistant',answer)])
     def pending(self): return rows(self.db,'SELECT * FROM outbox WHERE sent=0 ORDER BY id')
