@@ -82,6 +82,9 @@ def parse_turn(raw, tools, *, active_tool=None, preview_tool=None, suspended_ids
         raise PlanError('ferramenta')
     if action == 'CONFIRMAR' and transition not in ('KEEP_TASK', 'COMPLETE_TASK'):
         raise PlanError('confirmacao')
+    if action in ('PERGUNTAR', 'RESPONDER') and args and transition not in ('CREATE_TASK', 'UPDATE_TASK'):
+        # Only CREATE/UPDATE store fields; anything else would let the message cite invented data.
+        raise PlanError('dados_fora_da_tarefa')
     cleared = plan.get('clear_fields', [])
     if (not isinstance(cleared, list) or len(cleared) > 12
             or any(not isinstance(key, str) for key in cleared)
@@ -134,6 +137,10 @@ def _normalize_transition(plan, action, transition, tool, active_tool, preview_t
           and 'task_id' not in plan and preview_tool and tool in (None, preview_tool)):
         # The confirmation still only reuses the active preview with identical arguments.
         transition, reason = 'KEEP_TASK', 'confirmacao_com_transicao'
+    elif (action in ('PERGUNTAR', 'RESPONDER') and transition == 'KEEP_TASK' and plan.get('args')
+          and tool and tool == active_tool):
+        # New fields for the active task while asking the next question.
+        transition, reason = 'UPDATE_TASK', 'campos_da_tarefa_ativa'
     elif (action != 'CONFIRMAR' and tool and tool != active_tool
           and (transition == 'UPDATE_TASK' or (action == 'EXECUTAR' and transition == 'COMPLETE_TASK'))):
         # Updating or completing a different tool means a new task; the active one is suspended.

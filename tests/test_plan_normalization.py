@@ -71,6 +71,22 @@ class PlanNormalizationTests(unittest.TestCase):
                           TOOLS, active_tool='agenda_criar')
         self.assertEqual(plan['context_action'], 'UPDATE_TASK')
 
+    def test_question_with_fields_outside_create_or_update_is_rejected(self):
+        # qwen2.5:3b, "Vamos agendar uma reunião?": invented fields that SUSPEND_TASK never stores.
+        for transition, active in (('SUSPEND_TASK', 'agenda_criar'), ('CANCEL_TASK', 'agenda_criar'),
+                                   ('KEEP_TASK', None), ('KEEP_TASK', 'financeiro_registrar')):
+            with self.assertRaises(PlanError):
+                parse_turn(turn(action='PERGUNTAR', context_action=transition, tool='agenda_criar',
+                                args={'titulo': 'Reunião de estudo', 'inicio': '2026-11-27 10:00'},
+                                message='Agora, 2026-11-27T10:00-04:00 em America/Manaus.'),
+                           TOOLS, active_tool=active)
+
+    def test_question_keeping_active_task_with_its_fields_updates_it(self):
+        plan = parse_turn(turn(action='PERGUNTAR', context_action='KEEP_TASK', tool='agenda_criar',
+                               args={'titulo': 'Aula'}, message='Qual a duração?'),
+                          TOOLS, active_tool='agenda_criar')
+        self.assertEqual(plan['context_action'], 'UPDATE_TASK')
+
     def test_first_question_reaches_user_with_one_model_call(self):
         calls = []
 
