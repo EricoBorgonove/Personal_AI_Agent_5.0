@@ -12,7 +12,8 @@ from agent.domain.policies import now
 
 from .agents import AgentFactory
 from .calendar_reminders import CalendarReminderService
-from .conversation import ContextBuilder, READ_TOOLS, parse_turn, required_fields, resolve_args, turn_schema
+from .conversation import (ContextBuilder, READ_TOOLS, is_affirmation, parse_turn, required_fields,
+                           resolve_args, turn_schema)
 from .dialogue import DialogueManager
 from .executor import Executor
 from .meetings import MeetingService
@@ -194,7 +195,12 @@ class Orchestrator:
             tool = 'solicitar_reuniao' if legacy.get('kind') == 'meeting' else 'registrar_recado'
             memory.add_suspended(tool, {key: value for key, value in legacy.items()
                                        if key != 'kind' and value is not None})
-        defaults = {'nome': (display_name or 'Solicitante')[:150], 'duracao': self.meeting_duration}
+        preview = (memory.active or {}).get('preview')
+        if preview and preview['tool'] in tools and is_affirmation(text):
+            # A literal approval needs no interpretation; the Executor still checks permissions.
+            logger.info('[PLAN] confirmacao_deterministica req=%s ferramenta=%s', request_id, preview['tool'])
+            return '', 'deterministica', preview
+        defaults ={'nome': (display_name or 'Solicitante')[:150], 'duracao': self.meeting_duration}
         task_context = copy.deepcopy(state)
         task_context.pop('next_id')
         for task in [task_context['active'], *task_context['suspended']]:

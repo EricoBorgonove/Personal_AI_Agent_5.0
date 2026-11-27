@@ -155,7 +155,7 @@ class LLMFirstTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             app = build_app(Path(directory) / 'agent.db', 'owner', lambda *_: json.dumps(next(plans)))
             app.handle('owner', 'Crie a tarefa Tarefa correta.')
-            app.handle('owner', 'Pode confirmar.')
+            app.handle('owner', 'Confirme, mas com o texto Tarefa diferente.')
             with app.uow.connection() as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM tasks').fetchone()[0], 0)
                 memory = app.working_memory_repository(db).load('owner', 'pessoal')

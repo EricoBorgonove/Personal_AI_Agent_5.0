@@ -1,6 +1,7 @@
 """Structured turn contract and context passed to the conversation planner."""
 import json
 import logging
+import unicodedata
 from datetime import date, datetime, time, timedelta
 
 from agent.domain.calendar import FMT, interval, parse
@@ -103,6 +104,23 @@ def parse_turn(raw, tools, *, active_tool=None, preview_tool=None, suspended_ids
                     raise PlanError('campo')
     json.dumps(plan, ensure_ascii=False, allow_nan=False).encode('utf-8')
     return plan
+
+
+AFFIRMATIONS = frozenset({
+    'sim', 's', 'ok', 'okay', 'certo', 'correto', 'isso', 'isso mesmo', 'exato', 'exatamente',
+    'perfeito', 'beleza', 'pode', 'pode sim', 'sim pode', 'pode confirmar', 'sim pode confirmar',
+    'pode gravar', 'pode salvar', 'pode registrar', 'pode agendar', 'pode marcar', 'pode lancar',
+    'confirma', 'confirmo', 'confirmado', 'confirmar', 'sim confirmo', 'sim confirma',
+    'esta certo', 'ta certo', 'tudo certo', 'pode seguir', '👍', '✅',
+})
+
+
+def is_affirmation(text):
+    """Literal short approval of the active preview; anything else is left to the planner."""
+    decomposed = unicodedata.normalize('NFKD', text.casefold())
+    plain = ''.join(char for char in decomposed if not unicodedata.combining(char))
+    words = ''.join(char if char.isalnum() or char in '👍✅' else ' ' for char in plain).split()
+    return ' '.join(words) in AFFIRMATIONS
 
 
 def _normalize_transition(plan, action, transition, tool, active_tool, preview_tool):

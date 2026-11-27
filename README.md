@@ -55,7 +55,7 @@ Envie `/identidade` para conferir o agente e o acesso da conversa. O comando e a
 
 Descreva o que deseja em português. O Ollama recebe as mensagens recentes, o horário em America/Manaus, a tarefa ativa e as ferramentas permitidas para seu perfil. Ele interpreta os dados, decide se deve perguntar ou consultar uma ferramenta e pode suspender uma tarefa para retomá-la depois. A aplicação resolve datas relativas ao receber os campos e mantém os rascunhos por remetente e perfil entre reinícios.
 
-Para criar um compromisso pessoal, envie “Quero marcar algo na minha agenda”, “Amanhã às 9”, o título e a duração. Confira os dados na prévia e confirme a gravação. O mesmo fluxo atende registros financeiros, tarefas e recados. Se a despesa não tiver data, a prévia usa a data local ao ser preparada.
+Para criar um compromisso pessoal, envie “Quero marcar algo na minha agenda”, “Amanhã às 9”, o título e a duração. Confira os dados na prévia e confirme a gravação. Respostas curtas como “sim”, “pode confirmar” ou “isso mesmo” confirmam a prévia ativa sem consultar o modelo; qualquer outra resposta, inclusive “sim, mas às 10”, é interpretada pelo Ollama como correção. O mesmo fluxo atende registros financeiros, tarefas e recados. Se a despesa não tiver data, a prévia usa a data local ao ser preparada.
 
 Uma solicitação de reunião externa gera um pedido pendente após a confirmação da prévia. A reunião só entra na agenda quando o proprietário executa a aprovação explícita com ID. O padrão de duração da solicitação vem de `MEETING_DURATION_MINUTES` (60 minutos por padrão).
 
