@@ -5,13 +5,15 @@ from agent.domain.policies import valid_time
 from agent.domain.meeting import State, transition
 class MeetingService:
     def __init__(self,repo,owner): self.repo,self.owner=repo,owner
-    def create(self,sender,name,subject,when):
+    def create(self,sender,name,subject,when,duration=60):
+        if type(duration) is not int or not 1 <= duration <= 1440:
+            raise ValueError('A duração deve ter entre 1 e 1440 minutos.')
         when=valid_time(when)
         old=self.repo.duplicate(sender,subject,when)
         if old: return {'id':old[0],'mensagem':'Solicitação já registrada; consulte o estado.'}
-        i=self.repo.create_request(sender,name,subject,when)
-        conflict = bool(self.repo.calendar.conflicts(when,meeting_end(when)))
-        self.repo.notify(self.owner,f'Conflito na agenda: {"sim" if conflict else "não"}. Duração padrão: 60 min. Nova reunião #{i}: {name} — {subject} — {when}. Responda: Confirmo a reunião #{i}, Recuso a reunião #{i} ou Proponho #{i} AAAA-MM-DD HH:MM.')
+        i=self.repo.create_request(sender,name,subject,when,duration)
+        conflict = bool(self.repo.calendar.conflicts(when,meeting_end(when,duration)))
+        self.repo.notify(self.owner,f'Conflito na agenda: {"sim" if conflict else "não"}. Duração: {duration} min. Nova reunião #{i}: {name} — {subject} — {when}. Responda: Confirmo a reunião #{i}, Recuso a reunião #{i} ou Proponho #{i} AAAA-MM-DD HH:MM.')
         return {'id':i,'status':'PENDENTE','mensagem':'Solicitação registrada para avaliação.'}
     def decision(self,sender,text):
         # Ações críticas exigem autorização literal, nunca uma inferência do LLM.
@@ -26,8 +28,9 @@ class MeetingService:
             new='ACEITA'; self.repo.notify(self.owner,f'O solicitante aceitou #{i} às {slot}. Para concluir: Confirmo a reunião #{i}')
         elif new==State.CONFIRMED:
             valid_time(slot)
-            if self.repo.calendar.conflicts(slot,meeting_end(slot)): return 'Horário indisponível: conflito na agenda. Proponha outro horário.'
-            CalendarService(self.repo.calendar).create(f"Reunião: {r['name']} — {r['subject']}",slot,meeting_end(slot),'reuniao','normal',i)
+            end=meeting_end(slot,r['duration'])
+            if self.repo.calendar.conflicts(slot,end): return 'Horário indisponível: conflito na agenda. Proponha outro horário.'
+            CalendarService(self.repo.calendar).create(f"Reunião: {r['name']} — {r['subject']}",slot,end,'reuniao','normal',i)
             new='CONFIRMADA'; self.repo.notify(r['sender'],f'Reunião #{i} confirmada pelo proprietário: {slot}.')
         elif new==State.REJECTED:
             new='RECUSADA'; self.repo.notify(r['sender'],f'O proprietário recusou a solicitação #{i}.')
