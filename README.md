@@ -55,6 +55,14 @@ Envie `/identidade` para conferir o agente e o acesso da conversa. O comando e a
 
 Para solicitar uma reunião, diga que quer marcá-la. O agente pede assunto, data e horário conforme necessário. Aceita datas como `AAAA-MM-DD`, `DD/MM/AAAA` e “amanhã”, e horários como “15h” ou “15:30”, no fuso de Manaus. Se quiser enviar tudo de uma vez, informe, por exemplo, “Quero marcar uma reunião. Assunto: orientação. Data: amanhã às 15h. Duração: 30 minutos.” O padrão de duração vem de `MEETING_DURATION_MINUTES` e começa em 60 minutos. Os dados de pedidos incompletos ficam separados por remetente e expiram após sete dias. Durante a coleta, escreva “cancelar pedido” para descartar o rascunho. O compromisso só entra na agenda após aprovação do proprietário.
 
+Na agenda pessoal, o proprietário pode começar com “Guarde na minha agenda uma palestra”, responder “Amanhã às 14h” e depois “50 minutos”. Confira o resumo e envie “Confirmo o compromisso” para registrar. A data relativa é convertida em data absoluta no momento em que você a informa. Você pode fazer uma consulta durante o preenchimento e continuar depois, inclusive após reiniciar.
+
+O preenchimento em etapas também aceita “Crie uma tarefa”, “Registre uma despesa” ou “Registre uma receita”, “Cadastre um cartão”, “Registre uma compra parcelada” e “Registre uma conta a pagar”. Responda aos campos na ordem solicitada e use a frase de confirmação do resumo. Para corrigir um campo, inclua o rótulo, como “Valor: 42,50”. O fluxo de lançamento usa o dia em que o rascunho foi aberto e mostra essa data no resumo. O preenchimento usa um rascunho privado por remetente e perfil e expira em sete dias. A agenda recorrente e os pedidos avançados seguem seus fluxos existentes.
+
+- `/contexto` exibe o rascunho da própria conversa.
+- `/cancelar` encerra os rascunhos da conversa.
+- `/novaconversa` encerra os rascunhos e reinicia o contexto enviado ao modelo. Os registros anteriores continuam no SQLite.
+
 Para ver a identificação no terminal, defina `DEBUG=true` no `.env` e reinicie o processo. O diagnóstico mostra servidor, JIDs mascarados, origem da comparação, agente e nível de acesso. Em caso de erro, o traceback mostra os arquivos, as linhas e as classes de exceção. Os logs omitem os JIDs completos, o conteúdo das mensagens, os valores das ferramentas e o texto das exceções. A saída do aplicativo usa UTF-8, inclusive quando redirecionada no Windows. Para testar o modo terminal em outro banco, use `python main.py --terminal --db caminho/para/teste.db`.
 
 Faça o pareamento com aparelhos conectados e envie mensagens de outros números. Use uma conta de teste: Neonize é uma integração não oficial, sujeita a mudanças e limitações do WhatsApp. Não execute o bot antigo simultaneamente com esta sessão. O modo WhatsApp não foi testado conectado neste ambiente; confirme compatibilidade e pareamento antes da oficina.
