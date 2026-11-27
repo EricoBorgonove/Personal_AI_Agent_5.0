@@ -20,6 +20,12 @@ class FinanceService:
     def budget(self,args):
         m=month(args.get('mes',now().strftime('%Y-%m'))); cat=category(args.get('categoria')); amount=cents(args.get('valor')); self.repository.budget(m,cat,amount)
         return {'mes':m,'categoria':cat,'limite_brl':money(amount)}
+    def expenses_on(self, value):
+        dt = day(value)
+        total = sum(row['amount_cents'] for row in self.repository.entries(dt[:7])
+                    if row['day'] == dt and row['kind'] == 'despesa' and not row['voided'])
+        return {'data': dt, 'despesas_brl': money(total)}
+
     def void(self,entry): return self.repository.void(entry)
 
 def register_finance(add,repo):
@@ -29,3 +35,4 @@ def register_finance(add,repo):
     add('financeiro_resumo','{"mes":"AAAA-MM (opcional)"}',True,lambda s,a:service.report(a))
     add('financeiro_extrato','{"mes":"AAAA-MM (opcional)"}',True,lambda s,a:service.entries(a))
     add('financeiro_orcamento','{"mes":"AAAA-MM (opcional)","categoria":"'+cats+'","valor":"500,00"}',True,lambda s,a:service.budget(a))
+    add('financeiro_despesas_dia','{"data":"AAAA-MM-DD"}',True,lambda s,a:service.expenses_on(a['data']))

@@ -15,11 +15,34 @@ class MemoryIntegrationTests(unittest.TestCase):
         tmp = self.enterContext(tempfile.TemporaryDirectory())
         self.path = Path(tmp) / 'integration.db'
         self.model_calls = []
+        self.plans = {}
         self.app = build_app(self.path, 'owner', self.model)
 
     def model(self, messages, schema):
         self.model_calls.append(messages)
-        return json.dumps({'action': 'RESPONDER', 'message': 'Estou à disposição.'})
+        text = messages[-1]['content'] if messages[-1]['role'] == 'user' else ''
+        return json.dumps(self.plans.get(text, {'action': 'RESPONDER', 'message': 'Estou à disposição.'}))
+
+    def plan(self, text, action, tool=None, transition=None, message=None, **args):
+        result = {'action': action}
+        if tool:
+            result.update(tool=tool, args=args)
+        if transition:
+            result['context_action'] = transition
+        if message:
+            result['message'] = message
+        self.plans[text] = result
+
+    def calendar_plans(self):
+        self.plan('Guarde na minha agenda uma palestra', 'PERGUNTAR', 'agenda_criar',
+                  'CREATE_TASK', 'Qual é a data?', titulo='Palestra')
+        for text in ('Amanhã às 14h.', 'Amanhã às 14h'):
+            self.plan(text, 'PERGUNTAR', 'agenda_criar', 'UPDATE_TASK',
+                      'Qual será a duração?', dia_offset=1, hora='14:00')
+        for text in ('50 minutos.', '50 minutos'):
+            self.plan(text, 'EXECUTAR', 'agenda_criar', 'UPDATE_TASK', minutos=50)
+        for text in ('Confirmo o compromisso.', 'Confirmo o compromisso'):
+            self.plan(text, 'CONFIRMAR')
 
     def say(self, text, sender='owner', event=None):
         self.app.handle(sender, text, event)
@@ -32,12 +55,13 @@ class MemoryIntegrationTests(unittest.TestCase):
             return db.execute(f'SELECT count(*) FROM {table}').fetchone()[0]
 
     def test_agenda_interruption_restart_and_exact_once(self):
+        self.calendar_plans()
         self.assertIn('Qual é a data?', self.say('Guarde na minha agenda uma palestra'))
         self.assertIn('Qual será a duração?', self.say('Amanhã às 14h.'))
         self.say('Como você pode me ajudar?')
-        self.assertEqual(len(self.model_calls), 1)
+        self.assertEqual(len(self.model_calls), 3)
         self.app = build_app(self.path, 'owner', self.model)
-        self.assertIn('palestra', self.say('/contexto'))
+        self.assertIn('Palestra', self.say('/contexto'))
         self.assertIn('14:50', self.say('50 minutos.'))
         self.assertEqual(self.count('calendar_events'), 0)
         self.assertNotIn('palestra', self.say('/contexto', 'guest'))
@@ -49,10 +73,16 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertEqual(self.count('calendar_events'), 1)
 
     def test_financial_drafts_are_confirmed_separately(self):
+        self.plan('Registre uma despesa', 'PERGUNTAR', 'financeiro_registrar', 'CREATE_TASK',
+                  'Qual é a descrição?', tipo='despesa')
+        self.plan('Almoço', 'PERGUNTAR', 'financeiro_registrar', 'UPDATE_TASK', 'Qual valor?', descricao='Almoço')
+        self.plan('34,50', 'PERGUNTAR', 'financeiro_registrar', 'UPDATE_TASK', 'Qual categoria?', valor='34,50')
+        self.plan('alimentação', 'EXECUTAR', 'financeiro_registrar', 'UPDATE_TASK', categoria='alimentacao')
+        self.plan('Confirmo o lançamento.', 'CONFIRMAR')
         self.assertIn('descrição', self.say('Registre uma despesa'))
         for step in ('Almoço', '34,50', 'alimentação'):
             reply = self.say(step)
-        self.assertIn('Confirmo o lançamento', reply)
+        self.assertIn('Você confirma?', reply)
         self.assertEqual(self.count('finance_entries'), 0)
         self.say('Confirmo o lançamento.')
         self.say('Confirmo o lançamento.')
@@ -68,10 +98,14 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertGreater(self.count('messages'), 0)
 
     def test_task_uses_confirmation_and_cancel_only_clears_draft(self):
+        self.plan('Crie uma tarefa', 'PERGUNTAR', 'criar_tarefa', 'CREATE_TASK', 'Qual é a descrição da tarefa?')
+        self.plan('Revisar relatório', 'EXECUTAR', 'criar_tarefa', 'UPDATE_TASK', texto='Revisar relatório')
+        self.plan('Confirmo a tarefa', 'CONFIRMAR')
         self.assertIn('descrição da tarefa', self.say('Crie uma tarefa'))
-        self.assertIn('Confirmo a tarefa', self.say('Revisar relatório'))
+        self.assertIn('Você confirma?', self.say('Revisar relatório'))
         self.say('/cancelar')
-        self.assertIn('Nenhum', self.say('Confirmo a tarefa.'))
+        self.assertIn('Nenhum', self.say('/contexto'))
+        self.say('Confirmo a tarefa')
         self.assertEqual(self.count('tasks'), 0)
         self.say('Crie uma tarefa')
         self.say('Revisar relatório')
@@ -80,6 +114,26 @@ class MemoryIntegrationTests(unittest.TestCase):
 
     def test_card_installment_and_payable_use_existing_contracts(self):
         first = now().date() + timedelta(days=45)
+        for tool, texts, fields in [
+            ('financeiro_cartao', ('Cadastre um cartão', 'Cartão didático', '1500', '5', str(first.day)),
+             ({}, {'nome': 'Cartão didático'}, {'limite': '1500'}, {'fechamento': 5}, {'vencimento': first.day})),
+            ('financeiro_compra_parcelada', ('Registre uma compra parcelada', '#1', 'Livro', 'compras', '60', '3', first.isoformat()),
+             ({}, {'cartao_id': 1}, {'descricao': 'Livro'}, {'categoria': 'compras'}, {'valor_total': '60'},
+              {'parcelas': 3}, {'primeiro_vencimento': first.isoformat()})),
+            ('financeiro_criar_conta', ('Registre uma conta a pagar', 'Internet', '95,50', 'serviços', first.isoformat()),
+             ({'tipo': 'despesa'}, {'descricao': 'Internet'}, {'valor': '95,50'}, {'categoria': 'servicos'},
+              {'vencimento': first.isoformat()})),
+        ]:
+            def plan_turns(texts, fields, name=tool):
+                for index, (text, values) in enumerate(zip(texts, fields)):
+                    complete = index == len(texts) - 1
+                    self.plan(text, 'EXECUTAR' if complete else 'PERGUNTAR', name,
+                              'UPDATE_TASK' if index else 'CREATE_TASK', None if complete else 'Qual é o próximo dado?', **values)
+            if tool == 'financeiro_criar_conta':
+                texts = (*texts[:-1], 'Data da conta: ' + texts[-1])
+            plan_turns(texts, fields)
+        for text in ('Confirmo o cartão', 'Confirmo a compra parcelada', 'Confirmo a conta'):
+            self.plan(text, 'CONFIRMAR')
         self.say('Cadastre um cartão')
         for text in ('Cartão didático', '1500', '5', str(first.day), 'Confirmo o cartão'):
             self.say(text)
@@ -89,12 +143,13 @@ class MemoryIntegrationTests(unittest.TestCase):
             self.say(text)
         self.assertEqual(self.count('finance_obligations'), 3)
         self.say('Registre uma conta a pagar')
-        for text in ('Internet', '95,50', 'serviços', first.isoformat(), 'Confirmo a conta'):
+        for text in ('Internet', '95,50', 'serviços', 'Data da conta: ' + first.isoformat(), 'Confirmo a conta'):
             self.say(text)
         self.assertEqual(self.count('finance_obligations'), 4)
         self.assertEqual(self.count('finance_entries'), 0)
 
     def test_failure_to_complete_draft_rolls_back_existing_tool(self):
+        self.calendar_plans()
         for text in ('Guarde na minha agenda uma palestra', 'Amanhã às 14h', '50 minutos'):
             self.say(text)
         with self.app.uow.transaction() as db:
@@ -110,6 +165,7 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertEqual(self.count('calendar_events'), 1)
 
     def test_two_events_confirm_one_draft_only_once(self):
+        self.calendar_plans()
         for text in ('Guarde na minha agenda uma palestra', 'Amanhã às 14h', '50 minutos'):
             self.say(text)
         gate = Barrier(2)

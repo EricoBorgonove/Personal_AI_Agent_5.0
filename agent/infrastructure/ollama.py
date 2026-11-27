@@ -29,7 +29,7 @@ def post_ollama(path, payload):
 
 def ask_ollama(messages, schema=None):
     payload = {'model': os.getenv('OLLAMA_MODEL', 'qwen2.5:3b'), 'messages': messages,
-               'stream': False, 'options': {'temperature': 0}}
+               'stream': False, 'think': False, 'options': {'temperature': 0, 'num_ctx': 4096, 'num_predict': 320}}
     if schema is not None:
         payload['format'] = schema
     data = post_ollama('/api/chat', payload)

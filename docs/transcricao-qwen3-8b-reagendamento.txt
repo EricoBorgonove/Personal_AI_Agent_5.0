@@ -1,0 +1,84 @@
+Ollama: qwen3:8b
+
+### reagendamento 2026-11-26T23:13:15.657725-04:00
+FIXTURE: Palestra didática
+USUÁRIO owner /novaconversa
+[IDENTITY] req=a9cdfa0ad35f perfil=pessoal
+[RESPONSE] req=a9cdfa0ad35f origem=deterministica
+AGENTE owner Nova conversa iniciada.
+USUÁRIO owner Mude a palestra para as dez.
+[IDENTITY] req=d2b26b78320f perfil=pessoal
+[CONTEXT] req=d2b26b78320f mensagens=0 ferramentas=29
+[MEMORY] req=d2b26b78320f ativa=False suspensas=0
+[LLM] envio req=d2b26b78320f modelo=qwen3:8b etapa=0
+MODELO 20.1 {
+  "action": "PERGUNTAR",
+  "context_action": "CREATE_TASK",
+  "tool": "agenda_reagendar",
+  "args": {
+    "termo": "palestra",
+    "hora": "10:00"
+  },
+  "message": "Você quer reagendar a palestra para as 10h? Por favor, confirme o título da palestra para que eu possa localizá-la."
+}
+[LLM] validado req=d2b26b78320f duracao_ms=20077
+[INTENT] req=d2b26b78320f acao=PERGUNTAR ferramenta=agenda_reagendar
+[SLOTS] req=d2b26b78320f campos=['hora', 'termo']
+[PLAN] req=d2b26b78320f acao=PERGUNTAR transicao=CREATE_TASK
+[EXECUTOR] inicio req=d2b26b78320f perfil=pessoal ferramenta=agenda_buscar
+[EXECUTOR] concluida req=d2b26b78320f ferramenta=agenda_buscar duracao_ms=0
+[RESULT] req=d2b26b78320f ferramenta=agenda_buscar status=concluida
+[LLM] envio req=d2b26b78320f modelo=qwen3:8b etapa=1
+MODELO 22.2 {"action": "EXECUTAR", "context_action": "UPDATE_TASK", "tool": "agenda_reagendar", "args": {"termo": "palestra", "hora": "10:00", "id": 1, "revisao": 0}, "message": ""}
+[LLM] validado req=d2b26b78320f duracao_ms=22161
+[INTENT] req=d2b26b78320f acao=EXECUTAR ferramenta=agenda_reagendar
+[SLOTS] req=d2b26b78320f campos=['hora', 'id', 'revisao', 'termo']
+[PLAN] req=d2b26b78320f acao=EXECUTAR transicao=UPDATE_TASK
+[MEMORY] atualizado req=d2b26b78320f ativa=True
+[RESPONSE] req=d2b26b78320f origem=deterministica
+AGENTE owner Reagendamento em preparação.
+compromisso: Palestra didática · início atual: 2026-11-27 09:00 · novo início: 2026-11-27 10:00
+Você confirma?
+USUÁRIO owner Isso mesmo.
+[IDENTITY] req=f116cecf33ea perfil=pessoal
+[CONTEXT] req=f116cecf33ea mensagens=2 ferramentas=29
+[MEMORY] req=f116cecf33ea ativa=True suspensas=0
+[LLM] envio req=f116cecf33ea modelo=qwen3:8b etapa=0
+MODELO 26.3 {
+  "action": "EXECUTAR",
+  "context_action": "RESUME_TASK",
+  "tool": "agenda_reagendar",
+  "args": {
+    "hora": "10:00",
+    "id": 1,
+    "revisao": 0
+  },
+  "message": ""
+}
+[PLAN] rejeitado req=f116cecf33ea motivo=tarefa duracao_ms=26349
+[LLM] envio req=f116cecf33ea modelo=qwen3:8b etapa=1
+MODELO 17.3 {
+  "action": "EXECUTAR",
+  "context_action": "COMPLETE_TASK",
+  "tool": "agenda_reagendar",
+  "args": {
+    "hora": "10:00",
+    "id": 1,
+    "revisao": 0
+  },
+  "message": ""
+}
+[LLM] validado req=f116cecf33ea duracao_ms=17251
+[INTENT] req=f116cecf33ea acao=EXECUTAR ferramenta=agenda_reagendar
+[SLOTS] req=f116cecf33ea campos=['hora', 'id', 'revisao']
+[PLAN] req=f116cecf33ea acao=EXECUTAR transicao=COMPLETE_TASK
+[EXECUTOR] inicio req=f116cecf33ea perfil=pessoal ferramenta=agenda_reagendar
+[EXECUTOR] concluida req=f116cecf33ea ferramenta=agenda_reagendar duracao_ms=1
+[RESULT] req=f116cecf33ea ferramenta=agenda_reagendar status=concluida
+[MEMORY] atualizado req=f116cecf33ea ativa=false
+[RESPONSE] req=f116cecf33ea origem=deterministica
+AGENTE owner Compromisso reagendado.
+id: 1 · inicio: 2026-11-27 10:00 · fim: 2026-11-27 10:50
+BANCO [('Palestra didática', '2026-11-27 10:00', '2026-11-27 10:50'), ('Leitura', '2026-11-27 14:00', '2026-11-27 14:30')]
+BANCO []
+BANCO []

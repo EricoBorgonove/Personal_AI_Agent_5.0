@@ -1,0 +1,154 @@
+Ollama: qwen3:8b
+
+### interrupção 2026-11-26T23:06:38.301279-04:00
+USUÁRIO owner /novaconversa
+[IDENTITY] req=6f2a58fbe5aa perfil=pessoal
+[RESPONSE] req=6f2a58fbe5aa origem=deterministica
+AGENTE owner Nova conversa iniciada.
+USUÁRIO owner Agende uma palestra.
+[IDENTITY] req=d41c6494028a perfil=pessoal
+[CONTEXT] req=d41c6494028a mensagens=0 ferramentas=29
+[MEMORY] req=d41c6494028a ativa=False suspensas=0
+[LLM] envio req=d41c6494028a modelo=qwen3:8b etapa=0
+MODELO 36.1 {
+  "action": "PERGUNTAR",
+  "context_action": "CREATE_TASK",
+  "tool": "agenda_criar",
+  "args": {
+    "titulo": "Palestra"
+  },
+  "message": "Por favor, forneça mais detalhes sobre a palestra, como o título completo, data e hora de início, e duração ou hora de fim."
+}
+[LLM] validado req=d41c6494028a duracao_ms=36085
+[INTENT] req=d41c6494028a acao=PERGUNTAR ferramenta=agenda_criar
+[SLOTS] req=d41c6494028a campos=['titulo']
+[PLAN] req=d41c6494028a acao=PERGUNTAR transicao=CREATE_TASK
+[MEMORY] atualizado req=d41c6494028a ativa=True
+[RESPONSE] req=d41c6494028a origem=llm
+AGENTE owner Por favor, forneça mais detalhes sobre a palestra, como o título completo, data e hora de início, e duração ou hora de fim.
+USUÁRIO owner Antes disso, registre uma despesa de R$ 50.
+[IDENTITY] req=82025a9d5b09 perfil=pessoal
+[CONTEXT] req=82025a9d5b09 mensagens=2 ferramentas=29
+[MEMORY] req=82025a9d5b09 ativa=True suspensas=0
+[LLM] envio req=82025a9d5b09 modelo=qwen3:8b etapa=0
+MODELO 20.4 {
+  "action": "EXECUTAR",
+  "context_action": "CREATE_TASK",
+  "tool": "financeiro_registrar",
+  "args": {
+    "tipo": "despesa",
+    "valor": "50,00",
+    "categoria": "educacao",
+    "descricao": "Registro de despesa para palestra"
+  },
+  "message": ""
+}
+[LLM] validado req=82025a9d5b09 duracao_ms=20449
+[INTENT] req=82025a9d5b09 acao=EXECUTAR ferramenta=financeiro_registrar
+[SLOTS] req=82025a9d5b09 campos=['categoria', 'descricao', 'tipo', 'valor']
+[PLAN] req=82025a9d5b09 acao=EXECUTAR transicao=CREATE_TASK
+[MEMORY] atualizado req=82025a9d5b09 ativa=True
+[RESPONSE] req=82025a9d5b09 origem=deterministica
+AGENTE owner Lançamento em preparação.
+tipo: despesa · valor: 50,00 · categoria: educacao · descricao: Registro de despesa para palestra · data: 2026-11-26
+Você confirma?
+USUÁRIO owner Agora vamos voltar à palestra.
+[IDENTITY] req=c7544ef1e2be perfil=pessoal
+[CONTEXT] req=c7544ef1e2be mensagens=4 ferramentas=29
+[MEMORY] req=c7544ef1e2be ativa=True suspensas=1
+[LLM] envio req=c7544ef1e2be modelo=qwen3:8b etapa=0
+MODELO 24.0 {
+  "action": "RESPONDER",
+  "context_action": "RESUME_TASK",
+  "tool": "nenhuma",
+  "args": {},
+  "message": "Por favor, forneça mais detalhes sobre a palestra, como o título completo, data e hora de início, e duração ou hora de fim."
+}
+[LLM] validado req=c7544ef1e2be duracao_ms=24030
+[INTENT] req=c7544ef1e2be acao=RESPONDER ferramenta=None
+[SLOTS] req=c7544ef1e2be campos=[]
+[PLAN] req=c7544ef1e2be acao=RESPONDER transicao=RESUME_TASK
+[MEMORY] atualizado req=c7544ef1e2be ativa=True
+[RESPONSE] req=c7544ef1e2be origem=llm
+AGENTE owner Por favor, forneça mais detalhes sobre a palestra, como o título completo, data e hora de início, e duração ou hora de fim.
+BANCO []
+BANCO []
+BANCO [('owner', '{"active": {"id": 1, "tool": "agenda_criar", "fields": {"titulo": "Palestra"}}, "suspended": [{"id": 2, "tool": "financeiro_registrar", "fields": {"tipo": "despesa", "valor": "50,00", "categoria": "educacao", "descricao": "Registro de despesa para palestra"}}], "next_id": 3}')]
+
+### reagendamento 2026-11-26T23:07:58.878736-04:00
+FIXTURE: Palestra didática
+USUÁRIO owner /novaconversa
+[IDENTITY] req=589396857b1f perfil=pessoal
+[RESPONSE] req=589396857b1f origem=deterministica
+AGENTE owner Nova conversa iniciada.
+USUÁRIO owner Mude a palestra para as dez.
+[IDENTITY] req=b26303a34bed perfil=pessoal
+[CONTEXT] req=b26303a34bed mensagens=0 ferramentas=29
+[MEMORY] req=b26303a34bed ativa=False suspensas=0
+[LLM] envio req=b26303a34bed modelo=qwen3:8b etapa=0
+MODELO 23.6 {
+  "action": "PERGUNTAR",
+  "context_action": "CREATE_TASK",
+  "tool": "agenda_reagendar",
+  "args": {
+    "termo": "palestra"
+  },
+  "message": "Qual é o título completo da palestra para que eu possa encontrar o evento correto?"
+}
+[PLAN] rejeitado req=b26303a34bed motivo=campo duracao_ms=23597
+[LLM] envio req=b26303a34bed modelo=qwen3:8b etapa=1
+MODELO 28.2 {
+  "action": "PERGUNTAR",
+  "context_action": "UPDATE_TASK",
+  "tool": "agenda_reagendar",
+  "args": {
+    "message": "Qual é o título da palestra que deseja mudar para as dez?"
+  },
+  "message": ""
+}
+[PLAN] rejeitado req=b26303a34bed motivo=mensagem duracao_ms=28164
+[RESPONSE] req=b26303a34bed origem=deterministica
+AGENTE owner Não consegui concluir o pedido. Pode reformular a mensagem?
+USUÁRIO owner Isso mesmo.
+[IDENTITY] req=3fc73ffeb0fd perfil=pessoal
+[CONTEXT] req=3fc73ffeb0fd mensagens=2 ferramentas=29
+[MEMORY] req=3fc73ffeb0fd ativa=False suspensas=0
+[LLM] envio req=3fc73ffeb0fd modelo=qwen3:8b etapa=0
+MODELO 21.1 {
+  "action": "EXECUTAR",
+  "context_action": "UPDATE_TASK",
+  "tool": "agenda_reagendar",
+  "args": {
+    "id": 1,
+    "hora": "10:00",
+    "revisao": 0
+  },
+  "message": ""
+}
+[LLM] validado req=3fc73ffeb0fd duracao_ms=21081
+[INTENT] req=3fc73ffeb0fd acao=EXECUTAR ferramenta=agenda_reagendar
+[SLOTS] req=3fc73ffeb0fd campos=['hora', 'id', 'revisao']
+[PLAN] req=3fc73ffeb0fd acao=EXECUTAR transicao=UPDATE_TASK
+[PLAN] rejeitado req=3fc73ffeb0fd motivo=tarefa_incompativel duracao_ms=21081
+[LLM] envio req=3fc73ffeb0fd modelo=qwen3:8b etapa=1
+MODELO 27.1 {
+  "action": "EXECUTAR",
+  "context_action": "UPDATE_TASK",
+  "tool": "agenda_reagendar",
+  "args": {
+    "id": 1,
+    "hora": "10:00",
+    "revisao": 0
+  },
+  "message": ""
+}
+[LLM] validado req=3fc73ffeb0fd duracao_ms=27060
+[INTENT] req=3fc73ffeb0fd acao=EXECUTAR ferramenta=agenda_reagendar
+[SLOTS] req=3fc73ffeb0fd campos=['hora', 'id', 'revisao']
+[PLAN] req=3fc73ffeb0fd acao=EXECUTAR transicao=UPDATE_TASK
+[PLAN] rejeitado req=3fc73ffeb0fd motivo=tarefa_incompativel duracao_ms=27060
+[RESPONSE] req=3fc73ffeb0fd origem=deterministica
+AGENTE owner Não consegui concluir o pedido. Pode reformular a mensagem?
+BANCO [('Palestra didática', '2026-11-27 09:00', '2026-11-27 09:50'), ('Leitura', '2026-11-27 14:00', '2026-11-27 14:30')]
+BANCO []
+BANCO []

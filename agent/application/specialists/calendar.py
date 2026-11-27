@@ -1,4 +1,5 @@
 from datetime import timedelta
+from agent.domain.policies import now
 from agent.domain.calendar import parse,interval,future_interval,FMT
 from agent.application.ports import CalendarProvider
 
@@ -35,6 +36,19 @@ class CalendarService:
         start,end=future_interval(start,end)
         if self.provider.conflicts(start,end,i): raise ValueError('Conflito de horário.')
         self.provider.update_event(i,start,end)
+    def search(self, term):
+        return self.provider.search_events(term.strip(), now().strftime(FMT))
+
+    def change_time(self, event_id, hour, revision):
+        event = self.provider.get(event_id)
+        if not event or event['revision'] != revision:
+            raise ValueError('Compromisso alterado. Consulte novamente antes de reagendar.')
+        old_start, old_end = parse(event['start']), parse(event['end'])
+        start = parse(old_start.date().isoformat() + ' ' + hour)
+        end = start + (old_end - old_start)
+        self.change(event_id, start.strftime(FMT), end.strftime(FMT))
+        return {'id': event_id, 'inicio': start.strftime(FMT), 'fim': end.strftime(FMT)}
+
     def cancel(self,i):
         event=self.provider.get(i)
         if not event or event['status']!='ativo': raise ValueError('Compromisso ativo não encontrado.')
@@ -47,3 +61,6 @@ def register_calendar(add,provider):
     add('agenda_criar','{"titulo":"...","inicio":"AAAA-MM-DD HH:MM","fim":"AAAA-MM-DD HH:MM","categoria":"pessoal","prioridade":"normal"}',True,lambda u,a:{'id':s.create(a['titulo'],a['inicio'],a['fim'],a.get('categoria','pessoal'),a.get('prioridade','normal'))})
     add('agenda_disponibilidade','{"inicio":"AAAA-MM-DD HH:MM","fim":"AAAA-MM-DD HH:MM","minutos":60}',True,lambda u,a:s.free(a['inicio'],a['fim'],a['minutos']))
     add('agenda_recorrencia','{"titulo":"...","inicio":"AAAA-MM-DD HH:MM","fim":"AAAA-MM-DD HH:MM","categoria":"pessoal","prioridade":"normal","frequencia":"semanal","quantidade":4}',True,lambda u,a:{'ids':s.recurring(a['titulo'],a['inicio'],a['fim'],a.get('categoria','pessoal'),a.get('prioridade','normal'),a['frequencia'],a['quantidade'])})
+    add('agenda_buscar','{"termo":"trecho do título"}',True,lambda u,a:s.search(a['termo']))
+    add('agenda_reagendar','{"termo":"trecho do título","hora":"HH:MM","id":1,"revisao":0}',True,
+        lambda u,a:s.change_time(a['id'],a['hora'],a['revisao']))

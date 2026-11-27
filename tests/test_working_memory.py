@@ -1,101 +1,128 @@
-import sqlite3
 import tempfile
 import unittest
-from datetime import date
+from datetime import datetime
 from pathlib import Path
+
+from agent.application.conversation import required_fields, resolve_args
+from agent.application.dialogue import DialogueManager
 from agent.application.working_memory import WorkingMemoryManager
-from agent.infrastructure.working_memory_repository import SQLiteDraftRepository
+from agent.domain.policies import TZ
+from agent.domain.working_memory import Draft
 from agent.infrastructure.sqlite import SQLiteUnitOfWork
+from agent.infrastructure.working_memory_repository import SQLiteDraftRepository
 
 
 class WorkingMemoryTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.path = Path(self.tmp.name) / 'test.db'
-        SQLiteUnitOfWork(self.path)
-        self.today = date(2026, 11, 26)
-        self.open()
+        tmp = self.enterContext(tempfile.TemporaryDirectory())
+        self.uow = SQLiteUnitOfWork(Path(tmp) / 'test.db')
+        self.today = datetime(2026, 11, 26, 13, tzinfo=TZ)
+        self.dialogue = DialogueManager()
 
-    def open(self):
-        self.db = sqlite3.connect(self.path)
-        self.store = SQLiteDraftRepository(self.db)
-        self.manager = WorkingMemoryManager(self.store)
+    def apply(self, state, transition='UPDATE_TASK', action='PERGUNTAR', tool='agenda_criar', **args):
+        return self.dialogue.apply(state, {'context_action': transition, 'action': action,
+                                          'tool': tool, 'args': args}, self.today)
 
-    def tearDown(self):
-        self.db.close()
-        self.tmp.cleanup()
+    def memory(self, db, sender='owner', role='pessoal'):
+        return WorkingMemoryManager(SQLiteDraftRepository(db), sender, role)
 
-    def send(self, text, sender='owner', role='pessoal', authorized=True):
-        return self.manager.route(sender, role, authorized, text, self.today)
-
-    def fill(self):
-        self.send('Guarde na minha agenda uma palestra')
-        self.send('Amanhã às 14h')
-        return self.send('50 minutos')
+    def fill(self, state):
+        self.apply(state, 'CREATE_TASK', titulo='Palestra')
+        self.apply(state, dia_offset=1, hora='14:00')
+        return self.apply(state, minutos=50)
 
     def test_palestra_multiturn(self):
-        self.assertIn('data', self.send('Guarde na minha agenda uma palestra').reply)
-        self.assertIn('duração', self.send('Amanhã às 14h').reply)
-        self.assertIn('14:50', self.send('50 minutos').reply)
-        plan = self.send('Confirmo o compromisso')
-        self.assertEqual(plan.tool,'agenda_criar')
-        self.assertEqual(plan.args, {'titulo':'palestra','inicio':'2026-11-27 14:00','fim':'2026-11-27 14:50'})
-        self.manager.complete('owner','pessoal')
-        self.assertIsNone(self.send('Confirmo o compromisso'))
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            fields = self.fill(state)
+            self.assertEqual(resolve_args('agenda_criar', fields, self.today),
+                             {'titulo': 'Palestra', 'inicio': '2026-11-27 14:00', 'fim': '2026-11-27 14:50'})
 
     def test_restart_and_relative_date(self):
-        self.send('Agende uma palestra sobre IA')
-        self.send('Amanhã')
-        self.db.commit(); self.db.close(); self.open()
-        self.today = date(2026,11,27)
-        self.send('14h'); self.send('duas horas')
-        plan = self.send('Confirmo o compromisso')
-        self.assertEqual(plan.args['inicio'],'2026-11-27 14:00')
-        self.assertEqual(plan.args['fim'],'2026-11-27 16:00')
-        self.assertEqual(plan.args['titulo'],'palestra sobre IA')
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            self.fill(state)
+            state.save()
+        with self.uow.transaction() as db:
+            self.today = self.today.replace(day=27)
+            state = self.memory(db)
+            fields = self.apply(state, minutos=120)
+            self.assertEqual(resolve_args('agenda_criar', fields, self.today)['fim'], '2026-11-27 16:00')
 
     def test_permissions_and_isolation(self):
-        self.fill()
-        self.assertIsNone(self.send('/contexto',sender='external',role='social',authorized=False))
-        self.assertIsNone(self.send('Confirmo o compromisso',sender='external',role='social',authorized=False))
-        self.assertIsNone(self.send('Confirmo o compromisso',sender='owner',role='social',authorized=False))
-        self.assertIn('Não há',self.send('/contexto',sender='other').reply)
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            self.fill(state)
+            state.save()
+            self.assertIsNone(self.memory(db, 'external', 'social').active)
+            self.assertIsNone(self.memory(db, 'owner', 'social').active)
+            self.assertIsNone(self.memory(db, 'other').active)
 
     def test_interrupt(self):
-        self.send('Agende uma palestra')
-        self.assertIsNone(self.send('Quanto gastei este mês?'))
-        self.assertIn('palestra',self.send('/contexto').reply)
-        self.send('Amanhã'); self.send('14h'); self.send('duas horas')
-        self.assertEqual(self.send('Confirmo o compromisso').args['fim'],'2026-11-27 16:00')
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            fields = self.fill(state)
+            task_id = state.active['id']
+            self.apply(state, 'CREATE_TASK', tool='financeiro_registrar', valor='50,00')
+            state.resume(task_id)
+            self.assertEqual(state.active['fields'], fields)
+            self.assertEqual(state.data['suspended'][0]['fields'], {'valor': '50,00'})
 
     def test_cancel_no_write(self):
-        self.fill()
-        self.assertIn('encerrado',self.send('/cancelar').reply)
-        self.assertIsNone(self.send('Confirmo o compromisso'))
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            self.fill(state)
+            self.apply(state, 'CANCEL_TASK', tool=None)
+            self.assertIsNone(state.active)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM calendar_events').fetchone()[0], 0)
 
-    def test_requires_confirmation(self):
-        self.assertIsNone(self.fill().tool)
-        self.assertIsNone(self.send('sim').tool)
-        self.assertIsNone(self.send('Não confirme').tool)
-        self.assertEqual(self.send('Confirmo o compromisso').tool,'agenda_criar')
+    def test_correction_invalidates_confirmation(self):
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            fields = self.fill(state)
+            state.active['preview'] = {'tool': 'agenda_criar', 'args': resolve_args('agenda_criar', fields, self.today)}
+            self.apply(state, hora='10:00')
+            self.assertNotIn('preview', state.active)
+            self.assertEqual(state.active['fields']['minutos'], 50)
+
+    def test_clear_hour_preserves_date_and_invalidates_preview(self):
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            self.apply(state, 'CREATE_TASK', titulo='Palestra', inicio='2026-11-27T09:00:00', minutos=50)
+            state.active['preview'] = {'tool': 'agenda_criar', 'args': {'inicio': '2026-11-27 09:00'}}
+            fields = self.dialogue.apply(state, {
+                'context_action': 'UPDATE_TASK', 'action': 'PERGUNTAR', 'tool': 'agenda_criar',
+                'args': {}, 'clear_fields': ['hora'],
+            }, self.today)
+            self.assertEqual(fields, {'titulo': 'Palestra', 'data': '2026-11-27', 'minutos': 50})
+            self.assertNotIn('preview', state.active)
 
     def test_expired(self):
-        self.fill()
-        self.db.execute("UPDATE working_memory_v1 SET updated_at=datetime('now','-8 days')")
-        self.assertIn('Não há',self.send('/contexto').reply)
-        self.assertIsNone(self.send('Confirmo o compromisso'))
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            self.fill(state)
+            state.save()
+            db.execute("UPDATE working_memory_v1 SET updated_at=datetime('now','-8 days')")
+            self.assertIsNone(self.memory(db).active)
 
-    def test_ambiguous_and_incomplete(self):
-        self.send('Agende uma palestra')
-        self.send('Amanhã ou hoje')
-        self.assertIn('data',self.send('/contexto').reply)
-        self.assertIsNone(self.send('Confirmo o compromisso').tool)
-        self.send('Amanhã às 25h')
-        self.assertIn('horário de início',self.send('/contexto').reply)
+    def test_incomplete_fields_and_invalid_duration(self):
+        with self.uow.transaction() as db:
+            state = self.memory(db)
+            fields = self.apply(state, 'CREATE_TASK', titulo='Palestra', dia_offset=1)
+            tools = {'agenda_criar': '{"titulo":"...","inicio":"...","fim":"..."}'}
+            self.assertEqual(required_fields('agenda_criar', tools, fields), ['hora', 'minutos'])
+            with self.assertRaises(ValueError):
+                self.apply(state, hora='09:00', minutos=-1)
+            self.assertEqual(state.active['fields'], fields)
 
-    def test_preserve_existing_advanced_route(self):
-        self.assertIsNone(self.send('Agende uma aula amanhã das 14h às 15h'))
-        self.assertIsNone(self.send('Agende uma aula semanal'))
+    def test_legacy_draft_requires_explicit_resume(self):
+        with self.uow.transaction() as db:
+            store = SQLiteDraftRepository(db)
+            store.save('owner', 'pessoal', Draft('agenda_criar', {'titulo': 'Palestra antiga'}))
+            state = self.memory(db)
+            self.assertIsNone(state.active)
+            state.resume(state.data['suspended'][0]['id'])
+            self.assertEqual(state.active['fields'], {'titulo': 'Palestra antiga'})
 
 
 if __name__ == '__main__':

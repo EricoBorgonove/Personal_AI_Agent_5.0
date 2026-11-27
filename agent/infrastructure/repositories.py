@@ -35,6 +35,15 @@ class Repository:
     def memories(self,query): return rows(self.db,'SELECT * FROM memories WHERE text LIKE ? ORDER BY id DESC LIMIT 20',('%'+query+'%',))
     def agenda(self): return rows(self.db,"SELECT id,name,subject,slot FROM requests WHERE status='CONFIRMADA' ORDER BY slot LIMIT 50")
     def seen(self,sender,event): return not self.db.execute('INSERT OR IGNORE INTO seen VALUES (?)',(sender+':'+event,)).rowcount
+    def event_seen(self, sender, event):
+        return bool(self.db.execute('SELECT 1 FROM seen WHERE id=?', (sender + ':' + event,)).fetchone())
+
+    def conversation_revision(self, sender):
+        return self.db.execute('''SELECT
+            (SELECT MAX(id) FROM messages WHERE sender=?),
+            (SELECT last_message_id FROM conversation_resets WHERE sender=?)
+        ''', (sender, sender)).fetchone()[:]
+
     def mark_presentation(self, identifiers, role):
         first = True
         for identifier in identifiers:

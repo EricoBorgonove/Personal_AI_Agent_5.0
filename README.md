@@ -53,13 +53,13 @@ python main.py
 
 Envie `/identidade` para conferir o agente e o acesso da conversa. O comando e a apresentação de cada perfil são definidos em Python. A apresentação é enviada na primeira interação registrada de cada perfil e o SQLite guarda o estado entre reinícios.
 
-Para solicitar uma reunião, diga que quer marcá-la. O agente pede assunto, data e horário conforme necessário. Aceita datas como `AAAA-MM-DD`, `DD/MM/AAAA` e “amanhã”, e horários como “15h” ou “15:30”, no fuso de Manaus. Se quiser enviar tudo de uma vez, informe, por exemplo, “Quero marcar uma reunião. Assunto: orientação. Data: amanhã às 15h. Duração: 30 minutos.” O padrão de duração vem de `MEETING_DURATION_MINUTES` e começa em 60 minutos. Os dados de pedidos incompletos ficam separados por remetente e expiram após sete dias. Durante a coleta, escreva “cancelar pedido” para descartar o rascunho. O compromisso só entra na agenda após aprovação do proprietário.
+Descreva o que deseja em português. O Ollama recebe as mensagens recentes, o horário em America/Manaus, a tarefa ativa e as ferramentas permitidas para seu perfil. Ele interpreta os dados, decide se deve perguntar ou consultar uma ferramenta e pode suspender uma tarefa para retomá-la depois. A aplicação resolve datas relativas ao receber os campos e mantém os rascunhos por remetente e perfil entre reinícios.
 
-Na agenda pessoal, o proprietário pode começar com “Guarde na minha agenda uma palestra”, responder “Amanhã às 14h” e depois “50 minutos”. Confira o resumo e envie “Confirmo o compromisso” para registrar. A data relativa é convertida em data absoluta no momento em que você a informa. Você pode fazer uma consulta durante o preenchimento e continuar depois, inclusive após reiniciar.
+Para criar um compromisso pessoal, envie “Quero marcar algo na minha agenda”, “Amanhã às 9”, o título e a duração. Confira os dados na prévia e confirme a gravação. O mesmo fluxo atende registros financeiros, tarefas e recados. Se a despesa não tiver data, a prévia usa a data local ao ser preparada.
 
-O preenchimento em etapas também aceita “Crie uma tarefa”, “Registre uma despesa” ou “Registre uma receita”, “Cadastre um cartão”, “Registre uma compra parcelada” e “Registre uma conta a pagar”. Responda aos campos na ordem solicitada e use a frase de confirmação do resumo. Para corrigir um campo, inclua o rótulo, como “Valor: 42,50”. O fluxo de lançamento usa o dia em que o rascunho foi aberto e mostra essa data no resumo. O preenchimento usa um rascunho privado por remetente e perfil e expira em sete dias. A agenda recorrente e os pedidos avançados seguem seus fluxos existentes.
+Uma solicitação de reunião externa gera um pedido pendente após a confirmação da prévia. A reunião só entra na agenda quando o proprietário executa a aprovação explícita com ID. O padrão de duração da solicitação vem de `MEETING_DURATION_MINUTES` (60 minutos por padrão).
 
-- `/contexto` exibe o rascunho da própria conversa.
+- `/contexto` exibe a tarefa ativa e os rascunhos suspensos da própria conversa.
 - `/cancelar` encerra os rascunhos da conversa.
 - `/novaconversa` encerra os rascunhos e reinicia o contexto enviado ao modelo. Os registros anteriores continuam no SQLite.
 
@@ -86,6 +86,9 @@ agent/
   application/
     agents.py                  # Strategy + Factory
     orchestrator.py            # Planejamento iterativo
+    conversation.py            # Contrato estruturado e contexto
+    dialogue.py                # Transições validadas
+    working_memory.py          # Rascunhos persistidos
     executor.py                # Validação e despacho
     tools.py                   # Command + Registry
     meetings.py                # Serviço de aplicação / aprovação humana
@@ -106,15 +109,17 @@ agent/
 
 O núcleo de aplicação não importa os adaptadores concretos. O bootstrap injeta o modelo, a fábrica de repositório, o gerenciador de transação e a base de conhecimento. Os protocolos são parciais (o repositório ainda usa tipagem estrutural implícita). A máquina de estados é independente de banco e IA. O Executor recebe comandos de um Registry e verifica permissões novamente antes de executar. A outbox é persistida na mesma transação das alterações, com entrega posterior. O esquema SQLite é preservado. Para migrar, copie somente o banco desejado depois de fazer backup, com o programa antigo desligado.
 
-Para adicionar uma ferramenta, registre um `ToolCommand` em `build_registry`, com nome, exemplo de argumentos, indicador de privacidade e função de execução. Não é necessário alterar Orchestrator ou Executor. O sistema não faz carregamento automático de plugins.
+Para adicionar uma ferramenta, registre um `ToolCommand` em `build_registry`, com nome, exemplo de argumentos, indicador de privacidade e função de execução. Marque consultas sem efeitos colaterais em `READ_TOOLS`, no módulo `conversation.py`. O Registry determina as ferramentas disponíveis para cada perfil.
 
 ## Decisão humana
 
-O agente interpreta solicitações em linguagem natural. A aprovação/recusa/contraproposta exige frases explícitas com ID, validadas diretamente em Python (não pelo LLM). A confirmação só ocorre se vier do proprietário e o estado permitir. A contraproposta exige aceitação do mesmo solicitante e confirmação final do proprietário. Agenda local = reuniões confirmadas. Conflitos são verificados pelo mesmo horário inicial, não por duração.
+A interpretação roda em `/api/chat` com papéis de sistema, usuário, assistente e ferramenta. O Orquestrador valida a decisão estruturada, o Executor volta a aplicar as permissões e as ferramentas verificam parâmetros e regras de negócio. A gravação da operação confirmada, a atualização do estado e a inclusão da resposta na outbox usam a mesma transação. A decisão de reunião, a contraproposta e o aceite continuam exigindo comandos explícitos com ID. Os conflitos na agenda consideram o intervalo do compromisso.
+
+Os testes automatizados rodam com `python -m unittest discover`. Para acompanhar uma avaliação real com dados fictícios e um banco temporário, use `OLLAMA_MODEL=qwen3:8b python -m scripts.evaluate_ollama` com o Ollama local em execução.
 
 ## Limitações
 
-MVP didático, não produção: Google Calendar, Gmail, lembretes agendados e painel não implementados. O LLM pode interpretar mal pedidos; ações críticas são determinísticas, mas tarefas, recados e memórias ainda dependem da interpretação do modelo. A outbox reenvia notificações pendentes; se o processo cair entre envio e registro, pode haver duplicação. Não há criptografia própria, retenção automática, autenticação multifator ou proteção completa contra prompt injection. Use dados fictícios e não exponha o Ollama na internet. Não há envio arbitrário a terceiros pelo LLM. Não há testes de rede neste ambiente. O repositório original não foi modificado.
+MVP didático, não produção: Google Calendar, Gmail, lembretes agendados e painel não implementados. O LLM pode interpretar mal pedidos; ações críticas são determinísticas, mas tarefas, recados e memórias ainda dependem da interpretação do modelo. A outbox reenvia notificações pendentes; se o processo cair entre envio e registro, pode haver duplicação. Não há criptografia própria, retenção automática, autenticação multifator ou proteção completa contra prompt injection. Use dados fictícios e não exponha o Ollama na internet. Não há envio arbitrário a terceiros pelo LLM.
 
 ## Versão 3 — Assistente financeiro pessoal
 

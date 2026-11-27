@@ -1,0 +1,150 @@
+Ollama: qwen3:8b
+
+### agenda 2026-11-26T23:01:51.707030-04:00
+USUÁRIO owner Quero marcar algo na minha agenda.
+[IDENTITY] req=e76be65100a8 perfil=pessoal
+[CONTEXT] req=e76be65100a8 mensagens=0 ferramentas=29
+[MEMORY] req=e76be65100a8 ativa=False suspensas=0
+[LLM] envio req=e76be65100a8 modelo=qwen3:8b etapa=0
+MODELO 11.4 {
+  "action": "PERGUNTAR",
+  "context_action": "CREATE_TASK",
+  "tool": "agenda_criar",
+  "args": {
+    "titulo": "na agenda"
+  },
+  "message": "Qual é o título da sua agenda?"
+}
+[LLM] validado req=e76be65100a8 duracao_ms=11359
+[INTENT] req=e76be65100a8 acao=PERGUNTAR ferramenta=agenda_criar
+[SLOTS] req=e76be65100a8 campos=['titulo']
+[PLAN] req=e76be65100a8 acao=PERGUNTAR transicao=CREATE_TASK
+[MEMORY] atualizado req=e76be65100a8 ativa=True
+[RESPONSE] req=e76be65100a8 origem=llm
+AGENTE owner Qual é o título da sua agenda?
+USUÁRIO owner Amanhã às 9.
+[IDENTITY] req=10abe782ec8f perfil=pessoal
+[CONTEXT] req=10abe782ec8f mensagens=2 ferramentas=29
+[MEMORY] req=10abe782ec8f ativa=True suspensas=0
+[LLM] envio req=10abe782ec8f modelo=qwen3:8b etapa=0
+MODELO 21.3 {
+  "action": "EXECUTAR",
+  "context_action": "UPDATE_TASK",
+  "tool": "agenda_criar",
+  "args": {
+    "titulo": "na agenda",
+    "data": "2026-11-27",
+    "hora": "09:00"
+  },
+  "message": ""
+}
+[LLM] validado req=10abe782ec8f duracao_ms=21323
+[INTENT] req=10abe782ec8f acao=EXECUTAR ferramenta=agenda_criar
+[SLOTS] req=10abe782ec8f campos=['data', 'hora', 'titulo']
+[PLAN] req=10abe782ec8f acao=EXECUTAR transicao=UPDATE_TASK
+[PLAN] rejeitado req=10abe782ec8f motivo=campos_ausentes:minutos duracao_ms=21323
+[LLM] envio req=10abe782ec8f modelo=qwen3:8b etapa=1
+MODELO 20.3 {
+  "action": "EXECUTAR",
+  "context_action": "UPDATE_TASK",
+  "tool": "agenda_criar",
+  "args": {
+    "titulo": "na agenda",
+    "data": "2026-11-27",
+    "hora": "09:00",
+    "minutos": 30
+  },
+  "message": ""
+}
+[LLM] validado req=10abe782ec8f duracao_ms=20307
+[INTENT] req=10abe782ec8f acao=EXECUTAR ferramenta=agenda_criar
+[SLOTS] req=10abe782ec8f campos=['data', 'hora', 'minutos', 'titulo']
+[PLAN] req=10abe782ec8f acao=EXECUTAR transicao=UPDATE_TASK
+[MEMORY] atualizado req=10abe782ec8f ativa=True
+[RESPONSE] req=10abe782ec8f origem=deterministica
+AGENTE owner Compromisso em preparação.
+titulo: na agenda · inicio: 2026-11-27 09:00 · fim: 2026-11-27 09:30
+Você confirma?
+USUÁRIO owner Uma palestra de inteligência artificial.
+[IDENTITY] req=58b606f3cd6f perfil=pessoal
+[CONTEXT] req=58b606f3cd6f mensagens=4 ferramentas=29
+[MEMORY] req=58b606f3cd6f ativa=True suspensas=0
+[LLM] envio req=58b606f3cd6f modelo=qwen3:8b etapa=0
+MODELO 27.2 {
+  "action": "EXECUTAR",
+  "context_action": "UPDATE_TASK",
+  "tool": "agenda_criar",
+  "args": {
+    "titulo": "Palestra de inteligência artificial",
+    "inicio": "2026-11-27 09:00",
+    "fim": "2026-11-27 09:30"
+  },
+  "message": ""
+}
+[LLM] validado req=58b606f3cd6f duracao_ms=27206
+[INTENT] req=58b606f3cd6f acao=EXECUTAR ferramenta=agenda_criar
+[SLOTS] req=58b606f3cd6f campos=['fim', 'inicio', 'titulo']
+[PLAN] req=58b606f3cd6f acao=EXECUTAR transicao=UPDATE_TASK
+[MEMORY] atualizado req=58b606f3cd6f ativa=True
+[RESPONSE] req=58b606f3cd6f origem=deterministica
+AGENTE owner Compromisso em preparação.
+titulo: Palestra de inteligência artificial · inicio: 2026-11-27 09:00 · fim: 2026-11-27 09:30
+Você confirma?
+USUÁRIO owner Cinquenta minutos.
+[IDENTITY] req=2fe11f4b4772 perfil=pessoal
+[CONTEXT] req=2fe11f4b4772 mensagens=6 ferramentas=29
+[MEMORY] req=2fe11f4b4772 ativa=True suspensas=0
+[LLM] envio req=2fe11f4b4772 modelo=qwen3:8b etapa=0
+MODELO 29.3 {
+  "action": "EXECUTAR",
+  "context_action": "COMPLETE_TASK",
+  "tool": "agenda_criar",
+  "args": {
+    "titulo": "Palestra de inteligência artificial",
+    "inicio": "2026-11-27 09:00",
+    "fim": "2026-11-27 09:50"
+  },
+  "message": ""
+}
+[LLM] validado req=2fe11f4b4772 duracao_ms=29279
+[INTENT] req=2fe11f4b4772 acao=EXECUTAR ferramenta=agenda_criar
+[SLOTS] req=2fe11f4b4772 campos=['fim', 'inicio', 'titulo']
+[PLAN] req=2fe11f4b4772 acao=EXECUTAR transicao=COMPLETE_TASK
+[MEMORY] atualizado req=2fe11f4b4772 ativa=True
+[RESPONSE] req=2fe11f4b4772 origem=deterministica
+AGENTE owner Compromisso em preparação.
+titulo: Palestra de inteligência artificial · inicio: 2026-11-27 09:00 · fim: 2026-11-27 09:50
+Você confirma?
+USUÁRIO owner Pode confirmar.
+[IDENTITY] req=44f2f90afe21 perfil=pessoal
+[CONTEXT] req=44f2f90afe21 mensagens=8 ferramentas=29
+[MEMORY] req=44f2f90afe21 ativa=True suspensas=0
+[LLM] envio req=44f2f90afe21 modelo=qwen3:8b etapa=0
+MODELO 31.3 {
+  "action": "EXECUTAR",
+  "context_action": "COMPLETE_TASK",
+  "tool": "agenda_criar",
+  "args": {
+    "titulo": "Palestra de inteligência artificial",
+    "inicio": "2026-11-27 09:00",
+    "fim": "2026-11-27 09:50"
+  },
+  "message": ""
+}
+[LLM] validado req=44f2f90afe21 duracao_ms=31313
+[INTENT] req=44f2f90afe21 acao=EXECUTAR ferramenta=agenda_criar
+[SLOTS] req=44f2f90afe21 campos=['fim', 'inicio', 'titulo']
+[PLAN] req=44f2f90afe21 acao=EXECUTAR transicao=COMPLETE_TASK
+[EXECUTOR] inicio req=44f2f90afe21 perfil=pessoal ferramenta=agenda_criar
+[EXECUTOR] concluida req=44f2f90afe21 ferramenta=agenda_criar duracao_ms=0
+[RESULT] req=44f2f90afe21 ferramenta=agenda_criar status=concluida
+[MEMORY] atualizado req=44f2f90afe21 ativa=false
+[RESPONSE] req=44f2f90afe21 origem=deterministica
+AGENTE owner Compromisso registrado.
+id: 1
+USUÁRIO owner Pode confirmar.
+[IDENTITY] req=86bc3885bc12 perfil=pessoal
+mensagem_duplicada req=86bc3885bc12
+BANCO [('Palestra de inteligência artificial', '2026-11-27 09:00', '2026-11-27 09:50')]
+BANCO []
+BANCO []

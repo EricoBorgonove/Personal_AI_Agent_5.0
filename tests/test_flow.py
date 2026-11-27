@@ -1,4 +1,4 @@
-import unittest,tempfile
+import json, unittest,tempfile
 from pathlib import Path
 from datetime import timedelta
 from agent.bootstrap import build_app
@@ -11,9 +11,12 @@ class Test(unittest.TestCase):
     with tempfile.TemporaryDirectory() as t:
       slot=(now()+timedelta(days=1)).strftime('%Y-%m-%d %H:%M'); slot2=(now()+timedelta(days=2)).strftime('%Y-%m-%d %H:%M')
       def model(*_):
-        self.fail('O pedido de reunião completo deve dispensar o modelo')
+        if _[0][-1]['content'] == 'Pode confirmar.':
+            return '{"action":"CONFIRMAR"}'
+        return json.dumps({'action':'EXECUTAR','tool':'solicitar_reuniao',
+                           'args':{'nome':'João','assunto':'TCC','horario':slot}})
       pedido=f'Solicito reunião. Nome: João. Assunto: TCC. Data: {slot}.'
-      a=build_app(str(Path(t)/'test.db'),'owner',model); a.handle('aluno',pedido, '1'); a.handle('aluno',pedido,'1')
+      a=build_app(str(Path(t)/'test.db'),'owner',model); a.handle('aluno',pedido, '1'); a.handle('aluno',pedido,'1'); a.handle('aluno','Pode confirmar.','2')
       a.handle('intruso','Confirmo a reunião #1'); a.handle('aluno','Confirmo a reunião #1'); a.handle('owner',f'Proponho #1 {slot2}'); a.handle('aluno','Aceito a reunião #1'); a.handle('owner','Confirmo a reunião #1')
       with a.uow.connection() as d:
         self.assertEqual(d.execute('SELECT count(*) FROM requests').fetchone()[0],1); self.assertEqual(d.execute('SELECT status FROM requests').fetchone()[0],'CONFIRMADA'); repo=Repository(d); e=Executor(build_registry(repo,'owner',a.knowledge),a.factory); self.assertEqual(e.execute('intruso','solicitacoes',{}),[])

@@ -33,7 +33,7 @@ class OrchestrationDiagnosticsTests(unittest.TestCase):
 
     def test_repeated_mutation_is_not_executed_again(self):
         call = '{"action":"EXECUTAR","tool":"criar_tarefa","args":{"texto":"Revisar relatório"}}'
-        calls = iter((call, call))
+        calls = iter((call, '{"action":"CONFIRMAR"}', '{"action":"CONFIRMAR"}', '{"action":"CONFIRMAR"}'))
 
         def model(messages, schema):
             if 'tool' not in schema['properties']:
@@ -43,13 +43,16 @@ class OrchestrationDiagnosticsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(Path(tmp) / 'test.db', 'owner', model)
             app.handle('owner', 'Crie a tarefa Revisar relatório.')
+            app.handle('owner', 'Pode confirmar.', 'confirmation')
+            app.handle('owner', 'Pode confirmar.', 'confirmation')
             with app.uow.connection() as db:
                 tasks = db.execute('SELECT text FROM tasks').fetchall()
             replies = []
             app.flush(lambda _, message: replies.append(message))
 
         self.assertEqual([task['text'] for task in tasks], ['Revisar relatório'])
-        self.assertEqual(replies, ['Tarefa registrada.\nid: 1'])
+        self.assertIn('Você confirma?', replies[0])
+        self.assertEqual(replies[1:], ['Tarefa registrada.\nid: 1'])
 
     def test_unexpected_tool_failure_keeps_traceback_and_hides_exception_data(self):
         def explode():
@@ -77,13 +80,16 @@ class OrchestrationDiagnosticsTests(unittest.TestCase):
                 return object()
 
         def model(messages, schema):
+            if messages[-1]['content'] == 'Pode confirmar.':
+                return '{"action":"CONFIRMAR"}'
             return '{"action":"EXECUTAR","tool":"criar_tarefa","args":{"texto":"Ação"}}'
 
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(Path(tmp) / 'test.db', 'owner', model)
             app.repository = InvalidResultRepository
+            app.handle('owner', 'Crie a tarefa Ação.')
             with self.assertLogs('agent.application.orchestrator', level='ERROR') as logs:
-                app.handle('owner', 'Crie a tarefa Ação.')
+                app.handle('owner', 'Pode confirmar.')
             with app.uow.connection() as db:
                 self.assertEqual(db.execute('SELECT count(*) FROM tasks').fetchone()[0], 0)
         self.assertIn('etapa_revertida', '\n'.join(logs.output))
@@ -120,18 +126,19 @@ class WhatsAppDiagnosticsTests(unittest.TestCase):
         source = MessageSource(Chat=chat, Sender=chat, SenderAlt=owner)
         direct = MessageSource(Chat=owner, Sender=owner)
         plan = '{"action":"EXECUTAR","tool":"criar_tarefa","args":{"texto":"Ação"}}'
-        responses = iter((plan, '{"action":"RESPONDER","message":"Tarefa registrada."}'))
+        responses = iter((plan, '{"action":"CONFIRMAR"}'))
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(Path(tmp) / 'test.db', '100@s.whatsapp.net', lambda *_: next(responses))
             resolver = IdentityResolver('100@s.whatsapp.net')
             whatsapp.dispatch_message(app, object(), source, 'Crie a tarefa Ação.', 'event', resolver)
             whatsapp.dispatch_message(app, object(), direct, 'Crie a tarefa Ação.', 'event', resolver)
+            whatsapp.dispatch_message(app, object(), source, 'Pode confirmar.', 'confirm', resolver)
             replies = []
             app.flush(lambda to, reply: replies.append((to, reply)))
             with app.uow.connection() as db:
                 tasks = db.execute('SELECT text FROM tasks').fetchall()
         self.assertEqual([task['text'] for task in tasks], ['Ação'])
-        self.assertEqual(len(replies), 2)
+        self.assertEqual(len(replies), 3)
         self.assertEqual(replies[-1], ('200@lid', 'Tarefa registrada.\nid: 1'))
 
     def test_owner_configured_as_lid_resolves_through_neonize_store(self):
