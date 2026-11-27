@@ -11,12 +11,16 @@ class ToolCommand:
     private: bool
     action: Callable
     def execute(self,sender,args): return self.action(sender,args)
+# Contacts use these to reach the owner; the owner schedules his own meetings with agenda_criar.
+EXTERNAL_ONLY={'solicitar_reuniao','registrar_recado'}
+def allowed(agent,command):
+    return agent.permits(command.private) and not (command.name in EXTERNAL_ONLY and agent.permits(True))
 class ToolRegistry:
     def __init__(self): self.commands={}
     def register(self,command):
         if command.name in self.commands: raise ValueError('Ferramenta duplicada')
         self.commands[command.name]=command
-    def available(self,agent): return {n:c.schema for n,c in self.commands.items() if agent.permits(c.private)}
+    def available(self,agent): return {n:c.schema for n,c in self.commands.items() if allowed(agent,c)}
     def get(self,name):
         if name not in self.commands: raise ValueError('Ferramenta desconhecida')
         return self.commands[name]

@@ -3,6 +3,8 @@ from time import monotonic
 
 from agent.diagnostics import safe_traceback
 
+from .tools import allowed
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +22,7 @@ class Executor:
                 raise ValueError('Ferramenta inválida')
             command = self.registry.get(tool)
             name = command.name
-            if not agent.permits(command.private):
+            if not allowed(agent, command):
                 raise ValueError('Ferramenta não autorizada')
             if not isinstance(args, dict):
                 raise ValueError('Parâmetros inválidos')
