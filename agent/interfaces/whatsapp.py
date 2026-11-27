@@ -38,7 +38,7 @@ def mask_jid(value):
     return f'***{suffix}@{server}'
 
 
-def dispatch_message(app, client, source, text, event_id, resolver, *, debug=False):
+def dispatch_message(app, client, source, text, event_id, resolver, *, debug=False, display_name=None):
     if source.IsFromMe or source.IsGroup or not text.strip():
         return False
     chat = event_jid(source.Chat)
@@ -50,14 +50,14 @@ def dispatch_message(app, client, source, text, event_id, resolver, *, debug=Fal
     if debug:
         agent = app.factory.select(identity.principal)
         logger.info(
-            'identidade_whatsapp recebido=%s servidor=%s alternativo=%s vinculo=%s '
+            '[IDENTITY] recebido=%s servidor=%s alternativo=%s vinculo=%s '
             'owner=%s owner_lid=%s comparacao=%s agente=%s acesso=%s',
             mask_jid(identity.sender), jid_server(identity.sender), mask_jid(alternate),
             mask_jid(identity.alternate), mask_jid(resolver.owner_jid), mask_jid(resolver.owner_lid),
             identity.matched_by, type(agent).__name__, 'privado' if agent.permits(True) else 'restrito',
         )
     app.handle(identity.principal, text.strip(), event_id, reply_to=chat,
-               presentation_keys=identity.presentation_keys)
+               presentation_keys=identity.presentation_keys, display_name=display_name)
     return True
 
 
@@ -106,7 +106,8 @@ def run(path='data/agent.db'):
             with lock:
                 source = event.Info.MessageSource
                 text = extract_text(event.Message) or ''
-                if dispatch_message(app, c, source, text, str(event.Info.ID), resolver, debug=debug):
+                if dispatch_message(app, c, source, text, str(event.Info.ID), resolver, debug=debug,
+                                    display_name=getattr(event.Info, 'PushName', None)):
                     app.flush(send)
         except Exception as error:
             logger.error('evento_whatsapp_falhou\n%s', safe_traceback(error))
