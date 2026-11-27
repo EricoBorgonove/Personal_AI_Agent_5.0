@@ -24,12 +24,12 @@ class Executor:
                 raise ValueError('Ferramenta não autorizada')
             if not isinstance(args, dict):
                 raise ValueError('Parâmetros inválidos')
-            logger.info('execucao_inicio req=%s perfil=%s ferramenta=%s', request_id, agent.role, name)
+            logger.info('[EXECUTOR] inicio req=%s perfil=%s ferramenta=%s', request_id, agent.role, name)
             result = command.execute(sender, args)
         except Exception as error:
-            logger.error('execucao_falhou req=%s perfil=%s ferramenta=%s\n%s',
+            logger.error('[ERROR] execucao_falhou req=%s perfil=%s ferramenta=%s\n%s',
                          request_id, agent.role, name, safe_traceback(error))
             raise
-        logger.info('execucao_concluida req=%s ferramenta=%s duracao_ms=%d',
+        logger.info('[EXECUTOR] concluida req=%s ferramenta=%s duracao_ms=%d',
                     request_id, name, (monotonic() - started) * 1000)
         return result
