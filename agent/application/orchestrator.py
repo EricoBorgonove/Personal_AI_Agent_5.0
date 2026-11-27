@@ -265,7 +265,10 @@ class Orchestrator:
                                 memory.active['candidates'] = found_events
                             continue
                 if action != 'EXECUTAR':
-                    message = self.responses.model_message(plan)
+                    evidence = '\n'.join([text, *(item['content'] for item in history),
+                                          json.dumps(memory.data, ensure_ascii=False),
+                                          json.dumps([row for _, row, _ in results], ensure_ascii=False)])
+                    message = self.responses.model_message(plan, evidence, current.date())
                     if action == 'PERGUNTAR' and tool == 'agenda_reagendar' and found_events:
                         if memory.active and memory.active['tool'] == tool:
                             memory.active['candidates'] = found_events
