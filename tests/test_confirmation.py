@@ -76,7 +76,7 @@ class DeterministicConfirmationTests(unittest.TestCase):
         slot = (now() + timedelta(days=1)).strftime('%Y-%m-%d %H:%M')
         self.plans = [{'action': 'EXECUTAR', 'context_action': 'CREATE_TASK', 'tool': 'solicitar_reuniao',
                        'args': {'nome': 'João', 'assunto': 'TCC', 'horario': slot}}]
-        self.app.handle('aluno', 'Quero uma reunião sobre TCC.')
+        self.app.handle('aluno', f'Quero uma reunião sobre TCC em {slot}.')
         self.app.handle('aluno', 'Pode confirmar.')
         with self.app.uow.connection() as db:
             self.assertEqual(db.execute('SELECT status FROM requests').fetchone()[0], 'PENDENTE')

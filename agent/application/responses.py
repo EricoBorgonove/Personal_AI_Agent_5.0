@@ -1,7 +1,6 @@
 import re
-import unicodedata
-from datetime import timedelta
 
+from .grounding import ungrounded_moments
 from .planning import PlanError
 
 INTERNAL = re.compile(
@@ -64,6 +63,7 @@ class ResponseBuilder:
 
     @staticmethod
     def model_message(plan, evidence=None, today=None):
+        """``evidence`` is a grounding.Evidence or the plain conversation text."""
         text = plan['message'].strip()
         if INTERNAL.search(text) or COMPLETION_CLAIM.search(text):
             raise PlanError('mensagem_sem_evidencia')
@@ -93,51 +93,6 @@ COMPLETION_CLAIM = re.compile(
     r'\b(?:agendei|reagendei|confirmei|registrei|lancei|estornei|liquidei|salvei|enviei|'
     r'(?:foi|está|foram|estão) (?:agendad|reagendad|confirmad|registrad|enviad)[oa]s?)\b', re.I
 )
-
-MONTHS = ('janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto',
-          'setembro', 'outubro', 'novembro', 'dezembro')
-CLOCK = re.compile(r'(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?![\d])')
-HOUR = re.compile(r'\b(?:as|das|ate|para)\s+([01]?\d|2[0-3])(?:h([0-5]\d)?|\s*horas?)?(?![\d:])')
-ISO_DATE = re.compile(r'(?<!\d)\d{4}-(\d{2})-(\d{2})(?!\d)')
-BR_DATE = re.compile(r'(?<![\d/])(\d{1,2})/(\d{1,2})(?:/\d{2,4})?(?![\d/])')
-NAMED_DATE = re.compile(r'\b(\d{1,2})\s+de\s+(' + '|'.join(MONTHS) + r')\b')
-RELATIVE_DAYS = (('depois de amanha', 2), ('amanha', 1), ('hoje', 0))
-
-
-def _plain(text):
-    decomposed = unicodedata.normalize('NFKD', text.casefold())
-    return ''.join(char for char in decomposed if not unicodedata.combining(char))
-
-
-def _moments(text, *, loose_hours):
-    """Times as (hour, minute) and dates as (month, day) mentioned in a text."""
-    times = {(int(h), int(m)) for h, m in CLOCK.findall(text)}
-    if loose_hours:
-        times |= {(int(h), int(m or 0)) for h, m in HOUR.findall(text)}
-        times |= {(int(h), int(m or 0)) for h, m in re.findall(r'(?<![\d:])([01]?\d|2[0-3])h([0-5]\d)?\b', text)}
-    dates = {(int(m), int(d)) for m, d in ISO_DATE.findall(text)}
-    dates |= {(int(m), int(d)) for d, m in BR_DATE.findall(text)}
-    dates |= {(MONTHS.index(m) + 1, int(d)) for d, m in NAMED_DATE.findall(text)}
-    return times, dates
-
-
-def ungrounded_moments(message, evidence, today=None):
-    """True when the model message cites a time or date that nobody in the conversation provided."""
-    message, evidence = _plain(message), _plain(evidence)
-    # Format hints ("por exemplo, 15h ou 15:30") are not claims about the task.
-    message = re.sub(r'\bexemplo\b[^.?!]*', ' ', message)
-    times, dates = _moments(message, loose_hours=False)
-    times |= {(int(h), int(m or 0)) for h, m in HOUR.findall(message)}
-    known_times, known_dates = _moments(evidence, loose_hours=True)
-    if today is not None:
-        remaining = evidence
-        for word, offset in RELATIVE_DAYS:
-            if word in remaining:
-                remaining = remaining.replace(word, ' ')
-                day = today + timedelta(days=offset)
-                known_dates.add((day.month, day.day))
-    return bool(times - known_times or dates - known_dates)
-
 
 PREVIEW_LABELS = {
     'agenda_criar': 'Compromisso', 'agenda_reagendar': 'Reagendamento',

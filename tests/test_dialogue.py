@@ -141,22 +141,28 @@ class DialogueTests(unittest.TestCase):
         self.assertIn('Você confirma?', self.say('Registre uma despesa de almoço.', 'owner')[0][1])
         self.assertEqual(self.count('finance_entries'), 0)
 
-    def test_unconfirmed_calendar_time_does_not_reach_executor(self):
+    def test_invented_calendar_time_does_not_reach_preview_or_executor(self):
         day = (now()+timedelta(days=2)).date().isoformat()
         self.app = build_app(self.path, 'owner', lambda *_: (
             '{"action":"EXECUTAR","tool":"agenda_criar","args":'
             f'{{"titulo":"Revisão","inicio":"{day} 09:00","fim":"{day} 10:00"}}}}'
         ))
         reply = self.say(f'Crie um compromisso na agenda no dia {day}.', 'owner')[0][1]
+        self.assertNotIn('09:00', reply)
+        self.assertEqual(self.count('calendar_events'), 0)
+        reply = self.say(f'Crie a revisão no dia {day} das 09:00 às 10:00.', 'owner')[0][1]
         self.assertIn('Você confirma?', reply)
         self.assertEqual(self.count('calendar_events'), 0)
 
-    def test_model_cannot_create_an_unconfirmed_meeting(self):
+    def test_model_cannot_create_an_invented_meeting(self):
         proposal = ('{"action":"EXECUTAR","tool":"solicitar_reuniao","args":'
                     '{"nome":"Fictício","horario":"2099-01-01 09:00","assunto":"TCC"}}')
         self.app = build_app(self.path, 'owner', lambda *_: proposal)
         reply = self.say('Você tem informações para me passar?')[0][1]
         self.assertNotIn('plano', reply.lower())
+        self.assertNotIn('2099', reply)
+        self.assertEqual(self.count('requests'), 0)
+        reply = self.say('Quero falar sobre TCC em 2099-01-01 09:00.')[0][1]
         self.assertIn('Você confirma?', reply)
         self.assertEqual(self.count('requests'), 0)
 

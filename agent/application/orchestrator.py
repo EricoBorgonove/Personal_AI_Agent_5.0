@@ -15,6 +15,7 @@ from .conversation import (ContextBuilder, READ_TOOLS, is_affirmation, parse_tur
                            resolve_args, turn_schema)
 from .dialogue import DialogueManager
 from .executor import Executor
+from .grounding import Evidence
 from .meetings import MeetingService
 from .planning import PlanError
 from .reminders import FinanceReminderService
@@ -240,7 +241,8 @@ class Orchestrator:
                         raise PlanError('confirmacao_altera_previa')
                     return '', 'deterministica', preview
                 completes_active = action == 'EXECUTAR' and transition == 'COMPLETE_TASK'
-                fields = self.dialogue.apply(memory, plan, current)
+                fields = self.dialogue.apply(memory, plan, current,
+                                             self._evidence(text, history, memory, results, current))
                 transition = plan['context_action']
                 if tool == 'solicitar_reuniao' and action == 'EXECUTAR':
                     fields = {**defaults, **fields}
@@ -263,10 +265,8 @@ class Orchestrator:
                                 memory.active['candidates'] = found_events
                             continue
                 if action != 'EXECUTAR':
-                    evidence = '\n'.join([text, *(item['content'] for item in history),
-                                          json.dumps(memory.data, ensure_ascii=False),
-                                          json.dumps([row for _, row, _ in results], ensure_ascii=False)])
-                    message = self.responses.model_message(plan, evidence, current.date())
+                    message = self.responses.model_message(
+                        plan, self._evidence(text, history, memory, results, current))
                     if action == 'PERGUNTAR' and tool == 'agenda_reagendar' and found_events:
                         if memory.active and memory.active['tool'] == tool:
                             memory.active['candidates'] = found_events
@@ -359,6 +359,14 @@ class Orchestrator:
                 answer = self.responses.missing_details(missing)
                 return answer, 'deterministica', None
         return self.responses.failure(), 'deterministica', None
+
+    @staticmethod
+    def _evidence(text, history, memory, results, current):
+        speech = '\n'.join([text, *(item['content'] for item in history if item['role'] == 'user')])
+        records = '\n'.join([*(item['content'] for item in history if item['role'] != 'user'),
+                             json.dumps(memory.data, ensure_ascii=False),
+                             json.dumps([row for _, row, _ in results], ensure_ascii=False)])
+        return Evidence(speech, records, current.date())
 
     @staticmethod
     def _same_question(left, right):
