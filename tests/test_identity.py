@@ -111,7 +111,7 @@ class IdentityTests(unittest.TestCase):
             self.assertFalse(any(n.startswith(('financeiro_', 'agenda_')) for n in names))
             self.assertNotIn('memorias', names)
             self.assertNotIn('rag_privado', names)
-            return '{"tool":"rag_privado","args":{"busca":"privado"},"response":""}'
+            return '{"action":"EXECUTAR","tool":"rag_privado","args":{"busca":"privado"}}'
 
         def private_search(*_):
             self.fail('Contato externo executou RAG privado')

@@ -18,7 +18,10 @@ def money(value):
 
 def day(value):
     if not isinstance(value,str): raise ValueError('Data inválida')
-    parsed=date.fromisoformat(value)
+    try:
+        parsed=date.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError('Informe uma data válida no formato AAAA-MM-DD.') from error
     if parsed.isoformat()!=value: raise ValueError('Use AAAA-MM-DD')
     return value
 

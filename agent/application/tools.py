@@ -31,7 +31,7 @@ def build_registry(repo,owner,knowledge):
         msg=val(a,'texto'); repo.note(s,msg); repo.notify(owner,f'Novo recado de {s}: {msg}'); return 'Recado registrado.'
     def remember(s,a): repo.remember(val(a,'texto')); return 'Memória salva.'
     add('solicitacoes','{}',False,lambda s,a: repo.requests(None if s==owner else s))
-    add('solicitar_reuniao','{"nome":"...","assunto":"...","horario":"AAAA-MM-DD HH:MM"}',False,lambda s,a: meeting.create(s,val(a,'nome'),val(a,'assunto'),val(a,'horario')))
+    add('solicitar_reuniao','{"nome":"...","assunto":"...","horario":"AAAA-MM-DD HH:MM","duracao":60}',False,lambda s,a: meeting.create(s,val(a,'nome'),val(a,'assunto'),val(a,'horario'),a.get('duracao',60)))
     add('registrar_recado','{"texto":"..."}',False,note)
     add('rag_publico','{"busca":"..."}',False,lambda s,a: knowledge.search('public',val(a,'busca')))
     add('rag_privado','{"busca":"..."}',True,lambda s,a: knowledge.search('private',val(a,'busca')))
