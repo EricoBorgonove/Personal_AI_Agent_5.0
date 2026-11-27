@@ -12,29 +12,32 @@ from agent.infrastructure.ollama import ask_ollama
 
 class OrchestrationDiagnosticsTests(unittest.TestCase):
     def test_invalid_tool_is_replanned_with_role_specific_schema(self):
-        attempts = iter(('ferramenta_inexistente', 'final'))
+        attempts = iter((
+            {'action':'EXECUTAR','tool':'ferramenta_inexistente','args':{}},
+            {'action':'RESPONDER','message':'Olá!'},
+        ))
 
         def model(messages, schema):
             allowed = schema['properties']['tool'].get('enum', [])
-            if 'final' not in allowed or 'criar_tarefa' in allowed:
-                return '{"tool":"criar_tarefa","args":{},"response":""}'
-            return json.dumps({'tool': next(attempts), 'args': {}, 'response': 'Olá!'})
+            if 'criar_tarefa' in allowed:
+                return '{"action":"EXECUTAR","tool":"criar_tarefa","args":{}}'
+            return json.dumps(next(attempts))
 
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(Path(tmp) / 'test.db', 'owner', model)
-            app.handle('guest', 'Olá!')
+            app.handle('guest', 'Pode me ajudar?')
             replies = []
             app.flush(lambda _, message: replies.append(message))
 
         self.assertEqual(replies, ['Assistente virtual: Olá!'])
 
     def test_repeated_mutation_is_not_executed_again(self):
-        call = '{"tool":"criar_tarefa","args":{"texto":"Revisar relatório"},"response":""}'
+        call = '{"action":"EXECUTAR","tool":"criar_tarefa","args":{"texto":"Revisar relatório"}}'
         calls = iter((call, call))
 
         def model(messages, schema):
-            if schema['properties']['tool'].get('enum') == ['final']:
-                return '{"tool":"final","args":{},"response":"Tarefa registrada."}'
+            if 'tool' not in schema['properties']:
+                return '{"action":"RESPONDER","message":"Foram criadas 99 tarefas."}'
             return next(calls)
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -46,18 +49,18 @@ class OrchestrationDiagnosticsTests(unittest.TestCase):
             app.flush(lambda _, message: replies.append(message))
 
         self.assertEqual([task['text'] for task in tasks], ['Revisar relatório'])
-        self.assertEqual(replies, ['Tarefa registrada.'])
+        self.assertEqual(replies, ['Tarefa registrada.\nid: 1'])
 
     def test_unexpected_tool_failure_keeps_traceback_and_hides_exception_data(self):
         def explode():
             raise RuntimeError('dado confidencial de teste')
 
         knowledge = SimpleNamespace(search=lambda *_: explode())
-        plan = '{"tool":"rag_publico","args":{"busca":"consulta privada"},"response":""}'
+        plan = '{"action":"EXECUTAR","tool":"rag_publico","args":{"busca":"consulta privada"}}'
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(Path(tmp) / 'test.db', 'owner', lambda *_: plan, knowledge)
             with self.assertLogs('agent.application', level='ERROR') as logs:
-                app.handle('guest', 'mensagem privada')
+                app.handle('guest', 'Pode consultar os documentos sobre mensagem privada?')
         output = '\n'.join(logs.output)
         self.assertIn('Traceback', output)
         self.assertIn('explode', output)
@@ -74,9 +77,7 @@ class OrchestrationDiagnosticsTests(unittest.TestCase):
                 return object()
 
         def model(messages, schema):
-            if schema['properties']['tool']['enum'] == ['final']:
-                return '{"tool":"final","args":{},"response":"Só preciso que confirme os dados."}'
-            return '{"tool":"criar_tarefa","args":{"texto":"Ação"},"response":""}'
+            return '{"action":"EXECUTAR","tool":"criar_tarefa","args":{"texto":"Ação"}}'
 
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(Path(tmp) / 'test.db', 'owner', model)
@@ -118,20 +119,20 @@ class WhatsAppDiagnosticsTests(unittest.TestCase):
         owner = build_jid('100')
         source = MessageSource(Chat=chat, Sender=chat, SenderAlt=owner)
         direct = MessageSource(Chat=owner, Sender=owner)
-        plan = '{"tool":"criar_tarefa","args":{"texto":"Ação"},"response":""}'
-        responses = iter((plan, '{"tool":"final","args":{},"response":"Tarefa registrada."}'))
+        plan = '{"action":"EXECUTAR","tool":"criar_tarefa","args":{"texto":"Ação"}}'
+        responses = iter((plan, '{"action":"RESPONDER","message":"Tarefa registrada."}'))
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(Path(tmp) / 'test.db', '100@s.whatsapp.net', lambda *_: next(responses))
             resolver = IdentityResolver('100@s.whatsapp.net')
-            whatsapp.dispatch_message(app, object(), source, 'Olá!', 'event', resolver)
-            whatsapp.dispatch_message(app, object(), direct, 'Olá!', 'event', resolver)
+            whatsapp.dispatch_message(app, object(), source, 'Crie a tarefa Ação.', 'event', resolver)
+            whatsapp.dispatch_message(app, object(), direct, 'Crie a tarefa Ação.', 'event', resolver)
             replies = []
             app.flush(lambda to, reply: replies.append((to, reply)))
             with app.uow.connection() as db:
                 tasks = db.execute('SELECT text FROM tasks').fetchall()
         self.assertEqual([task['text'] for task in tasks], ['Ação'])
         self.assertEqual(len(replies), 2)
-        self.assertEqual(replies[-1], ('200@lid', 'Tarefa registrada.'))
+        self.assertEqual(replies[-1], ('200@lid', 'Tarefa registrada.\nid: 1'))
 
     def test_owner_configured_as_lid_resolves_through_neonize_store(self):
         from neonize.proto.Neonize_pb2 import MessageSource
