@@ -1,0 +1,6 @@
+neonize
+python-dotenv
+pypdf
+tzdata
+
+tzdata
