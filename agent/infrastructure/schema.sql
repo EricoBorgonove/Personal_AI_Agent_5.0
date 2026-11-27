@@ -1,4 +1,5 @@
 CREATE TABLE IF NOT EXISTS requests(id INTEGER PRIMARY KEY,sender TEXT NOT NULL,name TEXT NOT NULL,subject TEXT NOT NULL,slot TEXT NOT NULL,status TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS meeting_durations(request_id INTEGER PRIMARY KEY REFERENCES requests(id),minutes INTEGER NOT NULL CHECK(minutes BETWEEN 1 AND 1440));
 CREATE TABLE IF NOT EXISTS transitions(id INTEGER PRIMARY KEY,request_id INTEGER,actor TEXT,status TEXT,slot TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS tasks(id INTEGER PRIMARY KEY,text TEXT,done INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS memories(id INTEGER PRIMARY KEY,text TEXT);
@@ -7,6 +8,7 @@ CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY,sender TEXT,role TEXT
 CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY,recipient TEXT,text TEXT,sent INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS seen(id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS presentations(sender TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY(sender,role));
+CREATE TABLE IF NOT EXISTS dialogue_drafts(sender TEXT PRIMARY KEY, fields TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS finance_entries(id INTEGER PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN ('receita','despesa')),amount_cents INTEGER NOT NULL CHECK(amount_cents>0),category TEXT NOT NULL,description TEXT NOT NULL,day TEXT NOT NULL,voided INTEGER NOT NULL DEFAULT 0 CHECK(voided IN (0,1)));
 CREATE TABLE IF NOT EXISTS finance_budgets(month TEXT NOT NULL,category TEXT NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>0),PRIMARY KEY(month,category));
 CREATE TABLE IF NOT EXISTS finance_cards(id INTEGER PRIMARY KEY,name TEXT NOT NULL COLLATE NOCASE UNIQUE,limit_cents INTEGER NOT NULL CHECK(limit_cents>0),closing_day INTEGER NOT NULL CHECK(closing_day BETWEEN 1 AND 31),due_day INTEGER NOT NULL CHECK(due_day BETWEEN 1 AND 31));
@@ -16,4 +18,7 @@ CREATE TABLE IF NOT EXISTS finance_reminder_log(obligation_id INTEGER NOT NULL R
 CREATE TABLE IF NOT EXISTS calendar_events(id INTEGER PRIMARY KEY,title TEXT NOT NULL,start TEXT NOT NULL,end TEXT NOT NULL,category TEXT NOT NULL DEFAULT 'pessoal',priority TEXT NOT NULL DEFAULT 'normal',status TEXT NOT NULL DEFAULT 'ativo',request_id INTEGER UNIQUE REFERENCES requests(id),revision INTEGER NOT NULL DEFAULT 0,CHECK(end>start));
 CREATE INDEX IF NOT EXISTS calendar_interval ON calendar_events(status,start,end);
 CREATE TABLE IF NOT EXISTS calendar_notifications(key TEXT PRIMARY KEY);
-INSERT OR IGNORE INTO calendar_events(title,start,end,category,request_id) SELECT 'Reunião: '||name||' — '||subject,slot,strftime('%Y-%m-%d %H:%M',slot,'+1 hour'),'reuniao',id FROM requests WHERE status='CONFIRMADA';
+INSERT OR IGNORE INTO calendar_events(title,start,end,category,request_id)
+SELECT 'Reunião: '||r.name||' — '||r.subject,r.slot,
+       strftime('%Y-%m-%d %H:%M',r.slot,'+'||COALESCE(d.minutes,60)||' minutes'),'reuniao',r.id
+FROM requests r LEFT JOIN meeting_durations d ON d.request_id=r.id WHERE r.status='CONFIRMADA';
