@@ -1,5 +1,6 @@
 """Structured turn contract and context passed to the conversation planner."""
 import json
+import logging
 from datetime import date, datetime, time, timedelta
 
 from agent.domain.calendar import FMT, interval, parse
@@ -7,6 +8,8 @@ from agent.domain.finance import category, cents, day
 from agent.domain.policies import TZ
 
 from .planning import JSON_TYPES, PlanError, object_schema, tool_args_schema, unique_keys
+
+logger = logging.getLogger(__name__)
 
 TRANSITIONS = ('KEEP_TASK', 'CREATE_TASK', 'UPDATE_TASK', 'SUSPEND_TASK',
                'RESUME_TASK', 'CANCEL_TASK', 'COMPLETE_TASK')
@@ -70,6 +73,7 @@ def parse_turn(raw, tools, *, active_tool=None, preview_tool=None, suspended_ids
         tool = plan['tool'] = None
     if tool is None and transition == 'UPDATE_TASK':
         tool = plan['tool'] = active_tool
+    transition = _normalize_transition(plan, action, transition, tool, active_tool, preview_tool)
     args = plan.setdefault('args', {})
     if not isinstance(args, dict) or (tool is not None and (not isinstance(tool, str) or tool not in tools)):
         raise PlanError('ferramenta')
@@ -99,6 +103,27 @@ def parse_turn(raw, tools, *, active_tool=None, preview_tool=None, suspended_ids
                     raise PlanError('campo')
     json.dumps(plan, ensure_ascii=False, allow_nan=False).encode('utf-8')
     return plan
+
+
+def _normalize_transition(plan, action, transition, tool, active_tool, preview_tool):
+    """Fix transitions whose intent is unambiguous instead of spending another model call."""
+    reason = None
+    if (action in ('PERGUNTAR', 'RESPONDER') and tool is None and not plan.get('args')
+            and transition in ('CREATE_TASK', 'UPDATE_TASK')):
+        # A question without a chosen tool is still useful: keep the state and deliver it.
+        transition, reason = 'KEEP_TASK', 'pergunta_sem_ferramenta'
+    elif (action == 'CONFIRMAR' and transition in ('CREATE_TASK', 'UPDATE_TASK')
+          and 'task_id' not in plan and preview_tool and tool in (None, preview_tool)):
+        # The confirmation still only reuses the active preview with identical arguments.
+        transition, reason = 'KEEP_TASK', 'confirmacao_com_transicao'
+    elif (action != 'CONFIRMAR' and tool and tool != active_tool
+          and (transition == 'UPDATE_TASK' or (action == 'EXECUTAR' and transition == 'COMPLETE_TASK'))):
+        # Updating or completing a different tool means a new task; the active one is suspended.
+        transition, reason = 'CREATE_TASK', 'tarefa_diferente_da_ativa'
+    if reason:
+        logger.info('[PLAN] normalizado motivo=%s de=%s para=%s', reason, plan['context_action'], transition)
+        plan['context_action'] = transition
+    return transition
 
 
 def required_fields(tool, tools, args):
