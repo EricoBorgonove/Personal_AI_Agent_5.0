@@ -31,12 +31,15 @@ MAX_TOOLS = 5
 
 
 class Orchestrator:
-    def __init__(self,uow,repository,owner,model,knowledge,*,working_memory_repository,meeting_duration=60):
+    def __init__(self,uow,repository,owner,model,knowledge,*,working_memory_repository,meeting_duration=60,
+                 turn_budget=90):
         self.uow,self.repository,self.owner,self.model,self.knowledge=uow,repository,owner,model,knowledge
         self.factory=AgentFactory(owner)
         self.context = ContextBuilder()
         self.dialogue = DialogueManager()
         self.meeting_duration = meeting_duration
+        # Seconds after which a turn makes no further model calls and answers with what it has.
+        self.turn_budget = turn_budget
         self.responses=ResponseBuilder()
         self.working_memory_repository = working_memory_repository
         self._outbox_lock = Lock()
@@ -214,7 +217,11 @@ class Orchestrator:
         used = set()
         retried = False
         previous = next((item['content'] for item in reversed(history) if item['role'] == 'assistant'), '')
+        deadline = monotonic() + self.turn_budget
         for step in range(MAX_TOOLS + 2):
+            if step and monotonic() >= deadline:
+                logger.warning('[PLAN] tempo_esgotado req=%s etapas=%d limite_s=%d', request_id, step, self.turn_budget)
+                break
             before = copy.deepcopy(memory.data)
             started = monotonic()
             try:
