@@ -61,7 +61,18 @@ class Repository:
 
     def clear_dialogue(self, sender):
         self.db.execute('DELETE FROM dialogue_drafts WHERE sender=?', (sender,))
-    def history(self,sender): return rows(self.db,'SELECT role,content FROM messages WHERE sender=? ORDER BY id DESC LIMIT 12',(sender,))[::-1]
+    def reset_conversation(self, sender):
+        self.db.execute(
+            'INSERT INTO conversation_resets(sender,last_message_id) VALUES (?, '
+            'COALESCE((SELECT MAX(id) FROM messages WHERE sender=?),0)) '
+            'ON CONFLICT(sender) DO UPDATE SET last_message_id=excluded.last_message_id',
+            (sender, sender),
+        )
+    def history(self, sender):
+        return rows(self.db,
+                    'SELECT role,content FROM messages WHERE sender=? AND id>COALESCE('
+                    '(SELECT last_message_id FROM conversation_resets WHERE sender=?),0) '
+                    'ORDER BY id DESC LIMIT 12', (sender, sender))[::-1]
     def record(self,sender,text,answer): self.db.executemany('INSERT INTO messages(sender,role,content) VALUES (?,?,?)',[(sender,'user',text),(sender,'assistant',answer)])
     def pending(self): return rows(self.db,'SELECT * FROM outbox WHERE sent=0 ORDER BY id')
     def delivered(self,i): self.db.execute('UPDATE outbox SET sent=1 WHERE id=?',(i,))
