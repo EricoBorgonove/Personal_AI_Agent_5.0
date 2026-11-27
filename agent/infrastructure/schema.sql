@@ -9,6 +9,15 @@ CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY,recipient TEXT,text TEX
 CREATE TABLE IF NOT EXISTS seen(id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS presentations(sender TEXT NOT NULL, role TEXT NOT NULL, PRIMARY KEY(sender,role));
 CREATE TABLE IF NOT EXISTS dialogue_drafts(sender TEXT PRIMARY KEY, fields TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS working_memory_v1 (
+    sender TEXT NOT NULL, role TEXT NOT NULL, tool TEXT NOT NULL,
+    slots TEXT NOT NULL, evidence TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(sender, role)
+);
+CREATE TABLE IF NOT EXISTS conversation_resets (
+    sender TEXT PRIMARY KEY, last_message_id INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS finance_entries(id INTEGER PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN ('receita','despesa')),amount_cents INTEGER NOT NULL CHECK(amount_cents>0),category TEXT NOT NULL,description TEXT NOT NULL,day TEXT NOT NULL,voided INTEGER NOT NULL DEFAULT 0 CHECK(voided IN (0,1)));
 CREATE TABLE IF NOT EXISTS finance_budgets(month TEXT NOT NULL,category TEXT NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>0),PRIMARY KEY(month,category));
 CREATE TABLE IF NOT EXISTS finance_cards(id INTEGER PRIMARY KEY,name TEXT NOT NULL COLLATE NOCASE UNIQUE,limit_cents INTEGER NOT NULL CHECK(limit_cents>0),closing_day INTEGER NOT NULL CHECK(closing_day BETWEEN 1 AND 31),due_day INTEGER NOT NULL CHECK(due_day BETWEEN 1 AND 31));
