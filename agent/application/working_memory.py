@@ -51,6 +51,14 @@ class WorkingMemoryManager:
                 return
         raise ValueError('Tarefa suspensa inexistente.')
 
+    def complete_active(self):
+        """Close the executed task and drop suspended copies of it, so it cannot run twice."""
+        done = self.active
+        self.data['active'] = None
+        if done:
+            self.data['suspended'] = [task for task in self.data['suspended']
+                                      if (task['tool'], task['fields']) != (done['tool'], done['fields'])]
+
     def complete_read(self, interrupted):
         self.data['active'] = interrupted
         if interrupted:

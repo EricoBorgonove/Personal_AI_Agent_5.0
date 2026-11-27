@@ -49,6 +49,23 @@ class DeterministicConfirmationTests(unittest.TestCase):
         with self.app.uow.connection() as db:
             self.assertIsNone(self.app.working_memory_repository(db).load('owner', 'pessoal'))
 
+    def test_repeated_request_leaves_no_suspended_copy_after_confirmation(self):
+        # WhatsApp: the same bill was requested twice; the first draft stayed suspended after
+        # the second was confirmed and could have registered the bill again.
+        plan = {'action': 'EXECUTAR', 'context_action': 'CREATE_TASK', 'tool': 'criar_tarefa',
+                'args': {'texto': 'Pagar internet'}}
+        other = {'action': 'PERGUNTAR', 'context_action': 'CREATE_TASK', 'tool': 'agenda_criar',
+                 'args': {'titulo': 'Aula'}, 'message': 'Qual a data?'}
+        self.plans = [plan, other, dict(plan, args=dict(plan['args']))]
+        self.app.handle('owner', 'Crie a tarefa pagar internet.')
+        self.app.handle('owner', 'Agende uma aula.')
+        self.app.handle('owner', 'Crie a tarefa pagar internet.')
+        self.app.handle('owner', 'Sim')
+        self.assertEqual(self.tasks(), ['Pagar internet'])
+        with self.app.uow.connection() as db:
+            state = self.app.working_memory_repository(db).load('owner', 'pessoal').slots
+        self.assertEqual([task['tool'] for task in state['suspended']], ['agenda_criar'])
+
     def test_approval_without_preview_goes_to_model(self):
         self.plans = [{'action': 'RESPONDER', 'message': 'Não há nada para confirmar.'}]
         self.app.handle('owner', 'Sim')

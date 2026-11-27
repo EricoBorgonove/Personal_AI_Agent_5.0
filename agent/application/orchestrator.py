@@ -162,7 +162,7 @@ class Orchestrator:
         try:
             with repo.atomic():
                 result = self._verified_execution(executor, sender, preview['tool'], preview['args'], request_id)
-                memory.data['active'] = None
+                memory.complete_active()
                 if memory.data['suspended']:
                     memory.save()
                 else:
